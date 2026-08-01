@@ -21,12 +21,7 @@ import SupplierChipsCell from '@/components/common/SupplierChipsCell.vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
-<<<<<<< HEAD
 const { canManageCatalogs } = usePermissions()
-=======
-
-const { canCreateProducts, canEditProducts, canDeleteProducts } = usePermissions()
->>>>>>> b572185e4b81a9cdf844bc31b87b223715a3a73c
 
 // ─── Tabla principal ───────────────────────────────────────────────────────────
 const columns = [
@@ -400,13 +395,8 @@ function fmtQty(val) {
 <template>
   <section class="p-6 space-y-6">
     <PageHeader title="Productos" subtitle="Catálogo de productos del sistema">
-<<<<<<< HEAD
       <button v-if="canManageCatalogs" class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold bg-primary text-primary-foreground rounded-xl shadow-md hover:bg-primary/90 transition-all hover:scale-105" @click="openCreate">
         <Plus :size="18" /> Nuevo producto
-=======
-      <button v-if="canCreateProducts" class="btn btn--primary" @click="openCreate">
-        <Plus :size="16" /> Nuevo producto
->>>>>>> b572185e4b81a9cdf844bc31b87b223715a3a73c
       </button>
     </PageHeader>
 
@@ -454,7 +444,6 @@ function fmtQty(val) {
           />
         </template>
 
-<<<<<<< HEAD
         <template #is_active="{ row }">
           <span :class="['px-3 py-1 rounded-full text-[11px] font-bold', row.is_active ? 'bg-green-100 text-green-700' : 'bg-muted text-muted-foreground']">
             {{ row.is_active ? 'Activo' : 'Inactivo' }}
@@ -470,65 +459,6 @@ function fmtQty(val) {
         </template>
       </AppTable>
     </div>
-=======
-      <!-- Chips de proveedores: carga lazy al renderizarse -->
-      <template #suppliers="{ row }">
-        <SupplierChipsCell
-          :product-uuid="row.uuid"
-          :cache="productSupplierCache"
-          :name-map="supplierNameMap"
-          @load="fetchProductSuppliers"
-        />
-      </template>
-
-      <template #is_active="{ row }">
-        <span :class="['badge', row.is_active ? 'badge--green' : 'badge--neutral']">
-          {{ row.is_active ? 'Activo' : 'Inactivo' }}
-        </span>
-      </template>
-      <template #actions="{ row }">
-        <div class="row-actions">
-          <button
-            type="button"
-            class="icon-btn"
-            title="Ver historial de precios"
-            @click="openPriceHistory(row)"
-          >
-            <History :size="15" />
-          </button>
-
-          <button
-            type="button"
-            class="icon-btn"
-            title="Configurar stock por sucursal"
-            @click="openBPModal(row)"
-          >
-            <Building2 :size="15" />
-          </button>
-
-          <button
-            v-if="canEditProducts"
-            type="button"
-            class="icon-btn"
-            title="Editar"
-            @click="openEdit(row)"
-          >
-            <Pencil :size="15" />
-          </button>
-
-          <button
-            v-if="canDeleteProducts"
-            type="button"
-            class="icon-btn icon-btn--danger"
-            title="Eliminar"
-            @click="deleteTarget = row"
-          >
-            <Trash2 :size="15" />
-          </button>
-        </div>
-      </template>
-    </AppTable>
->>>>>>> b572185e4b81a9cdf844bc31b87b223715a3a73c
 
     <AppPagination
       :count="pagination.count"
@@ -621,53 +551,10 @@ function fmtQty(val) {
     </AppModal>
     <ConfirmDialog v-if="deleteTarget" title="Eliminar producto" message="¿Seguro?" confirm-label="Eliminar" :loading="deleteLoading" @confirm="confirmDelete" @cancel="deleteTarget = null" />
     <AppModal v-if="showBPModal && bpProduct" :title="`Stock por sucursal — ${bpProduct.name}`" size="xl" @close="showBPModal = false">
-<<<<<<< HEAD
       <div class="flex items-center justify-between mb-4"><span class="text-sm">{{ bpList.length }} sucursal(es)</span><button class="px-3 py-1 text-xs bg-primary text-white rounded" @click="openCreateBP">Agregar</button></div>
       <table class="w-full text-sm">
         <thead class="bg-muted text-xs uppercase"><tr><th class="p-3">Sucursal</th><th class="p-3">Mín</th><th class="p-3">Crít</th><th class="p-3">Máx</th><th class="p-3">Estado</th></tr></thead>
         <tbody class="divide-y"><tr v-for="bp in bpList" :key="bp.uuid" class="hover:bg-muted/50"><td class="p-3">{{ bp.branch_detail?.name }}</td><td class="p-3">{{ bp.min_stock }}</td><td class="p-3">{{ bp.critical_stock }}</td><td class="p-3">{{ bp.max_stock }}</td><td class="p-3">{{ bp.is_active ? 'Activo' : 'Inactivo' }}</td></tr></tbody>
-=======
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <span style="font-size:0.85rem;color:var(--color-muted)">{{ bpList.length }} sucursal(es) configurada(s)</span>
-        <button v-if="canEditProducts" class="btn btn--primary btn--sm" @click="openCreateBP">
-          <Plus :size="14" /> Agregar sucursal
-        </button>
-      </div>
-      <AppAlert v-if="bpError" type="error" :message="bpError" />
-      <div v-if="bpLoading" style="text-align:center;padding:24px;color:var(--color-muted)">Cargando...</div>
-      <table v-else-if="bpList.length" class="bp-table">
-        <thead>
-          <tr>
-            <th>Sucursal</th>
-            <th>Stock mínimo</th>
-            <th>Stock crítico</th>
-            <th>Stock máximo</th>
-            <th>Cant. mensual usual</th>
-            <th>Estado</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="bp in bpList" :key="bp.uuid">
-            <td><strong>{{ bp.branch_detail?.name ?? '—' }}</strong></td>
-            <td>{{ fmtQty(bp.min_stock) }}</td>
-            <td :class="{ 'bp-critical': bp.critical_stock > 0 }">{{ fmtQty(bp.critical_stock) }}</td>
-            <td>{{ bp.max_stock ? fmtQty(bp.max_stock) : '—' }}</td>
-            <td>{{ fmtQty(bp.usual_monthly_quantity) }}</td>
-            <td>
-              <span :class="['badge', bp.is_active ? 'badge--green' : 'badge--neutral']">
-                {{ bp.is_active ? 'Activo' : 'Inactivo' }}
-              </span>
-            </td>
-            <td>
-              <div class="row-actions">
-                <button v-if="canEditProducts" class="icon-btn" title="Editar" @click="openEditBP(bp)"><Pencil :size="14" /></button>
-                <button v-if="canDeleteProducts" class="icon-btn icon-btn--danger" title="Eliminar" @click="deleteBP(bp)"><Trash2 :size="14" /></button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
->>>>>>> b572185e4b81a9cdf844bc31b87b223715a3a73c
       </table>
     </AppModal>
   </section>

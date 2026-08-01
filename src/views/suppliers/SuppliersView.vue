@@ -228,11 +228,7 @@ function fmtDate(val) {
 <template>
   <section class="space-y-6">
     <PageHeader title="Proveedores" subtitle="Gestión de proveedores y sus precios">
-<<<<<<< HEAD
       <button v-if="canManageSuppliers" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-primary-foreground bg-primary rounded-md hover:bg-primary/90" @click="openCreate">
-=======
-      <button v-if="canCreateSuppliers" class="btn btn--primary" @click="openCreate">
->>>>>>> b572185e4b81a9cdf844bc31b87b223715a3a73c
         <Plus :size="16" /> Nuevo proveedor
       </button>
     </PageHeader>
@@ -268,17 +264,10 @@ function fmtDate(val) {
           <button class="p-2 rounded-md hover:bg-muted" title="Productos y precios" @click="openProductsModal(row)">
             <DollarSign :size="15" />
           </button>
-<<<<<<< HEAD
           <button v-if="canManageSuppliers" class="p-2 rounded-md hover:bg-muted" title="Editar" @click="openEdit(row)">
             <Pencil :size="15" />
           </button>
           <button v-if="canManageSuppliers" class="p-2 rounded-md hover:bg-muted text-destructive hover:bg-destructive/10" title="Eliminar" @click="deleteTarget = row">
-=======
-          <button v-if="canEditSuppliers" class="icon-btn" title="Editar" @click="openEdit(row)">
-            <Pencil :size="15" />
-          </button>
-          <button v-if="canDeleteSuppliers" class="icon-btn icon-btn--danger" title="Eliminar" @click="deleteTarget = row">
->>>>>>> b572185e4b81a9cdf844bc31b87b223715a3a73c
             <Trash2 :size="15" />
           </button>
         </div>
@@ -327,15 +316,9 @@ function fmtDate(val) {
       size="xl"
       @close="showProductsModal = false"
     >
-<<<<<<< HEAD
       <div class="flex justify-between items-center mb-4">
         <span class="text-sm text-muted-foreground">{{ spList.length }} producto(s) vinculado(s)</span>
         <button v-if="canManageSuppliers" class="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-primary-foreground bg-primary rounded-md hover:bg-primary/90" @click="openCreateSP">
-=======
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <span style="font-size:0.85rem;color:var(--color-muted)">{{ spList.length }} producto(s) vinculado(s)</span>
-        <button v-if="canCreateSuppliers" class="btn btn--primary btn--sm" @click="openCreateSP">
->>>>>>> b572185e4b81a9cdf844bc31b87b223715a3a73c
           <Plus :size="14" /> Vincular producto
         </button>
       </div>
@@ -368,17 +351,10 @@ function fmtDate(val) {
                 <button class="p-1.5 rounded-md hover:bg-muted" title="Historial de precios" @click="openPrices(sp)">
                   <History :size="14" />
                 </button>
-<<<<<<< HEAD
                 <button v-if="canManageSuppliers" class="p-1.5 rounded-md hover:bg-muted" title="Editar" @click="openEditSP(sp)">
                   <Pencil :size="14" />
                 </button>
                 <button v-if="canManageSuppliers" class="p-1.5 rounded-md hover:bg-muted text-destructive hover:bg-destructive/10" title="Desvincular" @click="deleteSP(sp)">
-=======
-                <button v-if="canEditSuppliers" class="icon-btn" title="Editar" @click="openEditSP(sp)">
-                  <Pencil :size="14" />
-                </button>
-                <button v-if="canDeleteSuppliers" class="icon-btn icon-btn--danger" title="Desvincular" @click="deleteSP(sp)">
->>>>>>> b572185e4b81a9cdf844bc31b87b223715a3a73c
                   <XCircle :size="14" />
                 </button>
               </div>
@@ -444,15 +420,9 @@ function fmtDate(val) {
       size="lg"
       @close="showPriceModal = false"
     >
-<<<<<<< HEAD
       <div class="flex justify-between items-center mb-4">
         <span class="text-sm text-muted-foreground">{{ priceList.length }} registro(s)</span>
         <button v-if="canManageSuppliers" class="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-primary-foreground bg-primary rounded-md hover:bg-primary/90" @click="openCreatePrice">
-=======
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <span style="font-size:0.85rem;color:var(--color-muted)">{{ priceList.length }} registro(s)</span>
-        <button v-if="canCreateSuppliers" class="btn btn--primary btn--sm" @click="openCreatePrice">
->>>>>>> b572185e4b81a9cdf844bc31b87b223715a3a73c
           <Plus :size="14" /> Registrar precio
         </button>
       </div>
@@ -465,7 +435,6 @@ function fmtDate(val) {
         </thead>
         <tbody class="divide-y">
           <tr v-for="p in priceList" :key="p.uuid">
-<<<<<<< HEAD
             <td class="p-2 font-semibold">{{ fmtCLP(p.price) }}</td>
             <td class="p-2">{{ p.currency }}</td>
             <td class="p-2">{{ fmtDate(p.valid_from) }}</td>
@@ -477,19 +446,6 @@ function fmtDate(val) {
                   <Pencil :size="13" />
                 </button>
                 <button v-if="canManageSuppliers" class="p-1.5 rounded-md hover:bg-muted text-destructive hover:bg-destructive/10" title="Eliminar" @click="deletePrice(p)">
-=======
-            <td><strong>{{ fmtCLP(p.price) }}</strong></td>
-            <td>{{ p.currency }}</td>
-            <td>{{ fmtDate(p.valid_from) }}</td>
-            <td>{{ p.valid_to ? fmtDate(p.valid_to) : 'Vigente' }}</td>
-            <td>{{ p.source ?? '—' }}</td>
-            <td>
-              <div class="row-actions">
-                <button v-if="canEditSuppliers" class="icon-btn" title="Editar" @click="openEditPrice(p)">
-                  <Pencil :size="13" />
-                </button>
-                <button v-if="canDeleteSuppliers" class="icon-btn icon-btn--danger" title="Eliminar" @click="deletePrice(p)">
->>>>>>> b572185e4b81a9cdf844bc31b87b223715a3a73c
                   <XCircle :size="13" />
                 </button>
               </div>
