@@ -1,0 +1,91 @@
+@import "tailwindcss";
+
+@theme {
+  /* Marca MauleMed */
+  --color-primary: #0A5FB5;
+  --color-primary-foreground: #FFFFFF;
+  --color-destructive: #F43F5E;
+  --color-destructive-foreground: #FFFFFF;
+
+  /* Colores base */
+  --color-background: #F5F7FA;
+  --color-foreground: #0F172A;
+  --color-card: #FFFFFF;
+  --color-card-foreground: #0F172A;
+  --color-muted: #E2E8F0;
+  --color-muted-foreground: #475569;
+  --color-border: #CBD5E1;
+  
+  /* Pastel Palette */
+  --color-pastel-blue: #D6EAF8;
+  --color-pastel-red: #FADBD8;
+  --color-pastel-green: #D4EFDF;
+  --color-pastel-yellow: #FCF3CF;
+  --color-pastel-purple: #EBDEF0;
+  --color-pastel-teal: #D1F2EB;
+}
+
+@layer base {
+  :root {
+    --color-primary: #0A5FB5;
+    --color-primary-foreground: #FFFFFF;
+    --color-destructive: #F43F5E;
+    --color-destructive-foreground: #FFFFFF;
+
+    --color-background: #F5F7FA;
+    --color-foreground: #0F172A;
+    --color-card: #FFFFFF;
+    --color-card-foreground: #0F172A;
+    --color-muted: #E2E8F0;
+    --color-muted-foreground: #475569;
+    --color-border: #CBD5E1;
+  }
+
+  .dark {
+    --color-background: #0F172A;
+    --color-foreground: #F8FAFC;
+    --color-card: #1E293B;
+    --color-card-foreground: #F8FAFC;
+    --color-muted: #334155;
+    --color-muted-foreground: #E2E8F0;
+    --color-border: #475569;
+    
+    --color-primary: #60A5FA;
+    --color-primary-foreground: #0F172A;
+    
+    --color-destructive: #FB7185;
+    --color-destructive-foreground: #0F172A;
+  }
+}
+
+@layer base {
+  body {
+    @apply bg-background text-foreground;
+  }
+  
+  /* Garantizar que todos los elementos interactivos muestren el cursor pointer */
+  button, 
+  a, 
+  [role="button"], 
+  summary, 
+  .cursor-pointer {
+    cursor: pointer !important;
+  }
+}
+
+@layer utilities {
+  .watermark-fixed {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+    background-image: url('/marca-agua.png');
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: contain;
+    opacity: 0.05;
+  }
+}
