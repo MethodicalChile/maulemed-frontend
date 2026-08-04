@@ -31,7 +31,12 @@ const GROUPS = [
   {
     key: 'catalog',
     label: 'Catálogo',
-    keys: ['products', 'maintenance', 'suppliers'],
+    keys: ['products', 'suppliers'],
+  },
+  {
+    key: 'maintenance',
+    label: 'Mantenedor',
+    keys: ['maintenance'],
   },
   {
     key: 'operations',
@@ -149,6 +154,18 @@ const itemMap = computed(() => {
       color: COLOR_MAP[item.key] ?? 'text-muted-foreground',
     }
   })
+
+  // Asegurar que Mantenedor siempre esté disponible
+  if (!map['maintenance']) {
+    map['maintenance'] = {
+      key:   'maintenance',
+      label: 'Mantenedor',
+      path:  '/maintenance',
+      icon:  ICON_MAP['maintenance'] ?? Settings,
+      color: COLOR_MAP['maintenance'] ?? 'text-slate-600',
+    }
+  }
+
   return map
 })
 

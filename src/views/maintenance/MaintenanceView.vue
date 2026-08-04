@@ -141,47 +141,45 @@ async function confirmDelete() {
 </script>
 
 <template>
-  <section class="page">
+  <section class="p-6 space-y-6">
     <PageHeader title="Mantenedor" subtitle="Administración de parámetros maestros del sistema">
-      <button v-if="canCreateProducts && activeTab === 'categories'" class="btn btn--primary" @click="openCreateCategory">
-        <Plus :size="16" /> Nueva categoría
+      <button v-if="canCreateProducts && activeTab === 'categories'" class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold bg-primary text-primary-foreground rounded-xl shadow-md hover:bg-primary/90 transition-all hover:scale-105" @click="openCreateCategory">
+        <Plus :size="18" /> Nueva categoría
       </button>
-      <button v-if="canCreateProducts && activeTab === 'units'" class="btn btn--primary" @click="openCreateUnit">
-        <Plus :size="16" /> Nueva unidad
+      <button v-if="canCreateProducts && activeTab === 'units'" class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold bg-primary text-primary-foreground rounded-xl shadow-md hover:bg-primary/90 transition-all hover:scale-105" @click="openCreateUnit">
+        <Plus :size="18" /> Nueva unidad
       </button>
     </PageHeader>
 
     <AppAlert v-if="currentList.error.value" type="error" :message="currentList.error.value" />
 
-    <div class="maintenance-tabs">
-      <button type="button" :class="['maintenance-tab', { 'maintenance-tab--active': activeTab === 'categories' }]" @click="switchTab('categories')">
-        <Tags :size="17" /> Categorías
+    <div class="flex gap-2">
+      <button type="button" :class="['px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2', activeTab === 'categories' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80']" @click="switchTab('categories')">
+        <Tags :size="16" /> Categorías
       </button>
-      <button type="button" :class="['maintenance-tab', { 'maintenance-tab--active': activeTab === 'units' }]" @click="switchTab('units')">
-        <Ruler :size="17" /> Unidades de medida
+      <button type="button" :class="['px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2', activeTab === 'units' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80']" @click="switchTab('units')">
+        <Ruler :size="16" /> Unidades de medida
       </button>
     </div>
 
-    <!-- Buscador server-side -->
-    <div class="filters-row">
-      <div class="search-input">
-        <Search :size="16" />
+    <!-- Buscador -->
+    <div class="p-4 rounded-xl bg-card border border-border shadow-sm">
+      <div class="relative">
+        <Search :size="18" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
         <AppInput
           type="text"
           placeholder="Buscar..."
           :model-value="currentList.params.search"
           @update:model-value="currentList.setParam('search', $event)"
+          class="pl-10"
         />
       </div>
     </div>
 
-    <div class="maintenance-card">
-      <div class="maintenance-card-header">
-        <div>
-          <h2>{{ currentTitle }}</h2>
-          <p v-if="activeTab === 'categories'">Clasificación utilizada para ordenar los productos.</p>
-          <p v-else>Unidades utilizadas para gestionar cantidades y stock.</p>
-        </div>
+    <div class="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+      <div class="p-4 border-b border-border">
+        <h2 class="text-lg font-semibold">{{ currentTitle }}</h2>
+        <p class="text-sm text-muted-foreground">{{ activeTab === 'categories' ? 'Clasificación utilizada para ordenar los productos.' : 'Unidades utilizadas para gestionar cantidades y stock.' }}</p>
       </div>
 
       <!-- Categorías -->
@@ -189,14 +187,14 @@ async function confirmDelete() {
         <AppTable :columns="categoryColumns" :rows="catList.items.value" :loading="catList.loading.value">
           <template #description="{ row }">{{ row.description || '—' }}</template>
           <template #is_active="{ row }">
-            <span :class="['badge', row.is_active ? 'badge--green' : 'badge--neutral']">
+            <span :class="['px-3 py-1 rounded-full text-[11px] font-bold', row.is_active ? 'bg-green-100 text-green-700' : 'bg-muted text-muted-foreground']">
               {{ row.is_active ? 'Activo' : 'Inactivo' }}
             </span>
           </template>
           <template #actions="{ row }">
-            <div class="row-actions">
-              <button v-if="canManageCatalogs" type="button" class="icon-btn" title="Editar" @click="openEditCategory(row)"><Pencil :size="15" /></button>
-              <button v-if="canDeleteProducts" type="button" class="icon-btn icon-btn--danger" title="Eliminar" @click="requestDelete('category', row)"><Trash2 :size="15" /></button>
+            <div class="flex justify-end gap-1">
+              <button v-if="canManageCatalogs" type="button" class="p-2 hover:bg-muted rounded-lg text-muted-foreground hover:text-primary transition-colors" title="Editar" @click="openEditCategory(row)"><Pencil :size="16" /></button>
+              <button v-if="canDeleteProducts" type="button" class="p-2 hover:bg-muted rounded-lg text-muted-foreground hover:text-destructive transition-colors" title="Eliminar" @click="requestDelete('category', row)"><Trash2 :size="16" /></button>
             </div>
           </template>
         </AppTable>
@@ -206,16 +204,16 @@ async function confirmDelete() {
       <!-- Unidades -->
       <template v-if="activeTab === 'units'">
         <AppTable :columns="unitColumns" :rows="unitList.items.value" :loading="unitList.loading.value">
-          <template #code="{ row }"><span class="unit-code">{{ row.code }}</span></template>
+          <template #code="{ row }"><span class="font-mono text-xs px-2 py-1 bg-muted rounded">{{ row.code }}</span></template>
           <template #is_active="{ row }">
-            <span :class="['badge', row.is_active ? 'badge--green' : 'badge--neutral']">
+            <span :class="['px-3 py-1 rounded-full text-[11px] font-bold', row.is_active ? 'bg-green-100 text-green-700' : 'bg-muted text-muted-foreground']">
               {{ row.is_active ? 'Activo' : 'Inactivo' }}
             </span>
           </template>
           <template #actions="{ row }">
-            <div class="row-actions">
-              <button v-if="canManageCatalogs" type="button" class="icon-btn" title="Editar" @click="openEditUnit(row)"><Pencil :size="15" /></button>
-              <button v-if="canDeleteProducts" type="button" class="icon-btn icon-btn--danger" title="Eliminar" @click="requestDelete('unit', row)"><Trash2 :size="15" /></button>
+            <div class="flex justify-end gap-1">
+              <button v-if="canManageCatalogs" type="button" class="p-2 hover:bg-muted rounded-lg text-muted-foreground hover:text-primary transition-colors" title="Editar" @click="openEditUnit(row)"><Pencil :size="16" /></button>
+              <button v-if="canDeleteProducts" type="button" class="p-2 hover:bg-muted rounded-lg text-muted-foreground hover:text-destructive transition-colors" title="Eliminar" @click="requestDelete('unit', row)"><Trash2 :size="16" /></button>
             </div>
           </template>
         </AppTable>
@@ -227,18 +225,18 @@ async function confirmDelete() {
     <AppModal v-if="showCategoryForm" :title="editingCategory ? 'Editar categoría' : 'Nueva categoría'" size="md" @close="showCategoryForm = false">
       <form @submit.prevent="saveCategory">
         <AppAlert v-if="formError" type="error" :message="formError" />
-        <div class="maintenance-form">
+        <div class="space-y-4">
           <FormField label="Nombre" required>
             <AppInput v-model="categoryForm.name" type="text" maxlength="150" required />
           </FormField>
           <FormField label="Descripción">
             <AppTextarea v-model="categoryForm.description" rows="3" />
           </FormField>
-          <label class="checkbox-label"><input v-model="categoryForm.is_active" type="checkbox" /> Categoría activa</label>
+          <label class="flex items-center gap-2 text-sm"><input v-model="categoryForm.is_active" type="checkbox" /> Categoría activa</label>
         </div>
-        <div class="form-actions">
-          <button type="button" class="btn btn--ghost" @click="showCategoryForm = false">Cancelar</button>
-          <button type="submit" class="btn btn--primary" :disabled="formLoading">{{ formLoading ? 'Guardando...' : 'Guardar' }}</button>
+        <div class="flex justify-end gap-3 mt-6 pt-4 border-t">
+          <button type="button" class="px-4 py-2 border rounded hover:bg-muted" @click="showCategoryForm = false">Cancelar</button>
+          <button type="submit" class="px-4 py-2 bg-primary text-white rounded" :disabled="formLoading">{{ formLoading ? 'Guardando...' : 'Guardar' }}</button>
         </div>
       </form>
     </AppModal>
@@ -247,18 +245,18 @@ async function confirmDelete() {
     <AppModal v-if="showUnitForm" :title="editingUnit ? 'Editar unidad de medida' : 'Nueva unidad de medida'" size="md" @close="showUnitForm = false">
       <form @submit.prevent="saveUnit">
         <AppAlert v-if="formError" type="error" :message="formError" />
-        <div class="maintenance-form">
+        <div class="space-y-4">
           <FormField label="Código" required>
             <AppInput v-model="unitForm.code" type="text" maxlength="20" placeholder="UN, KG, LT" required />
           </FormField>
           <FormField label="Nombre" required>
             <AppInput v-model="unitForm.name" type="text" maxlength="100" placeholder="Unidad" required />
           </FormField>
-          <label class="checkbox-label"><input v-model="unitForm.is_active" type="checkbox" /> Unidad activa</label>
+          <label class="flex items-center gap-2 text-sm"><input v-model="unitForm.is_active" type="checkbox" /> Unidad activa</label>
         </div>
-        <div class="form-actions">
-          <button type="button" class="btn btn--ghost" @click="showUnitForm = false">Cancelar</button>
-          <button type="submit" class="btn btn--primary" :disabled="formLoading">{{ formLoading ? 'Guardando...' : 'Guardar' }}</button>
+        <div class="flex justify-end gap-3 mt-6 pt-4 border-t">
+          <button type="button" class="px-4 py-2 border rounded hover:bg-muted" @click="showUnitForm = false">Cancelar</button>
+          <button type="submit" class="px-4 py-2 bg-primary text-white rounded" :disabled="formLoading">{{ formLoading ? 'Guardando...' : 'Guardar' }}</button>
         </div>
       </form>
     </AppModal>

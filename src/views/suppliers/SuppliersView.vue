@@ -17,7 +17,7 @@ import AppInput from '@/components/common/AppInput.vue'
 import AppSelect from '@/components/common/AppSelect.vue'
 import AppTextarea from '@/components/common/AppTextarea.vue'
 
-const { canCreateSuppliers, canEditSuppliers, canDeleteSuppliers } = usePermissions()
+const { canCreateSuppliers, canEditSuppliers, canDeleteSuppliers, canManageSuppliers } = usePermissions()
 
 const columns = [
   { key: 'name',          label: 'Nombre' },
@@ -228,12 +228,12 @@ function fmtDate(val) {
 <template>
   <section class="space-y-6">
     <PageHeader title="Proveedores" subtitle="Gestión de proveedores y sus precios">
-      <button v-if="canManageSuppliers" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-primary-foreground bg-primary rounded-md hover:bg-primary/90" @click="openCreate">
-        <Plus :size="16" /> Nuevo proveedor
+      <button v-if="canManageSuppliers" class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold bg-primary text-primary-foreground rounded-xl shadow-md hover:bg-primary/90 transition-all hover:scale-105" @click="openCreate">
+        <Plus :size="18" /> Nuevo proveedor
       </button>
     </PageHeader>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-xl bg-card border border-border shadow-sm">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-xl bg-card border border-border shadow-sm hidden">
       <div class="relative">
         <Search :size="18" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <AppInput
@@ -254,21 +254,25 @@ function fmtDate(val) {
     <AppAlert v-if="error" type="error" :message="error" />
 
     <AppTable :columns="columns" :rows="items" :loading="loading">
+      <template #filter-name>
+         <AppInput type="text" placeholder="Buscar..." :model-value="params.search" @update:model-value="setParam('search', $event)" />
+      </template>
+
       <template #is_active="{ row }">
         <span :class="['px-2 py-0.5 rounded-full text-xs font-bold', row.is_active ? 'bg-green-100 text-green-800' : 'bg-muted text-muted-foreground']">
           {{ row.is_active ? 'Activo' : 'Inactivo' }}
         </span>
       </template>
       <template #actions="{ row }">
-        <div class="flex gap-1">
-          <button class="p-2 rounded-md hover:bg-muted" title="Productos y precios" @click="openProductsModal(row)">
-            <DollarSign :size="15" />
+        <div class="flex gap-1 justify-end">
+          <button class="p-1 rounded hover:bg-muted" title="Productos y precios" @click="openProductsModal(row)">
+            <DollarSign :size="16" />
           </button>
-          <button v-if="canManageSuppliers" class="p-2 rounded-md hover:bg-muted" title="Editar" @click="openEdit(row)">
-            <Pencil :size="15" />
+          <button v-if="canManageSuppliers" class="p-1 rounded hover:bg-muted" title="Editar" @click="openEdit(row)">
+            <Pencil :size="16" />
           </button>
-          <button v-if="canManageSuppliers" class="p-2 rounded-md hover:bg-muted text-destructive hover:bg-destructive/10" title="Eliminar" @click="deleteTarget = row">
-            <Trash2 :size="15" />
+          <button v-if="canManageSuppliers" class="p-1 rounded hover:bg-muted text-destructive hover:bg-destructive/10" title="Eliminar" @click="deleteTarget = row">
+            <Trash2 :size="16" />
           </button>
         </div>
       </template>

@@ -15,10 +15,19 @@ import StatusBadge from '@/components/common/StatusBadge.vue'
 import FormField from '@/components/common/FormField.vue'
 import AppInput from '@/components/common/AppInput.vue'
 import AppSelect from '@/components/common/AppSelect.vue'
+import AppMultiSelect from '@/components/common/AppMultiSelect.vue'
 import AppTextarea from '@/components/common/AppTextarea.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 
 const { canManageFinance } = usePermissions()
+
+const INVOICE_STATUS_OPTIONS = [
+  { value: 'RECIBIDA', label: 'Recibida' },
+  { value: 'VALIDADA', label: 'Validada' },
+  { value: 'PARCIALMENTE_PAGADA', label: 'Parcialmente pagada' },
+  { value: 'PAGADA', label: 'Pagada' },
+  { value: 'ANULADA', label: 'Anulada' },
+]
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 const tabs = ['Facturas', 'Pagos', 'Presupuestos']
@@ -262,38 +271,26 @@ function fmtDate(val) {
 
     <!-- ── FACTURAS ── -->
     <template v-if="activeTab === 'Facturas'">
-      <div class="flex items-center gap-4 mb-4">
-        <div class="flex items-center gap-2 px-3 py-2 border rounded-md">
-          <Search :size="16" class="text-muted-foreground" />
-          <AppInput
-            type="text"
-            placeholder="Buscar por N° factura..."
-            :modelValue="invoiceList.params.search"
-            @update:modelValue="invoiceList.setParam('search', $event)"
-          />
-        </div>
-        <AppSelect :modelValue="invoiceList.params.status" @update:modelValue="invoiceList.setParam('status', $event)">
-          <option value="">Todos los estados</option>
-          <option value="RECIBIDA">Recibida</option>
-          <option value="VALIDADA">Validada</option>
-          <option value="PARCIALMENTE_PAGADA">Parcialmente pagada</option>
-          <option value="PAGADA">Pagada</option>
-          <option value="ANULADA">Anulada</option>
-        </AppSelect>
-      </div>
       <AppAlert v-if="invoiceList.error.value" type="error" :message="invoiceList.error.value" />
       <AppTable :columns="invoiceColumns" :rows="invoiceList.items.value" :loading="invoiceList.loading.value">
+        <template #filter-invoice_number>
+           <AppInput type="text" placeholder="Buscar..." :modelValue="invoiceList.params.search" @update:modelValue="invoiceList.setParam('search', $event)" />
+        </template>
+        <template #filter-status>
+           <AppMultiSelect :options="INVOICE_STATUS_OPTIONS" :modelValue="invoiceList.params.status || []" @update:modelValue="invoiceList.setParam('status', $event)" />
+        </template>
+
         <template #supplier="{ row }">{{ row.supplier_detail?.name ?? '—' }}</template>
         <template #total_amount="{ row }">{{ fmt(row.total_amount) }}</template>
         <template #issue_date="{ row }">{{ fmtDate(row.issue_date) }}</template>
         <template #status="{ row }"><StatusBadge :status="row.status" /></template>
         <template #actions="{ row }">
-          <div class="flex gap-1">
-            <button v-if="canManageFinance" class="p-2 rounded-md hover:bg-muted" title="Editar" @click="openEditInvoice(row)">
-              <Pencil :size="15" />
+          <div class="flex gap-1 justify-end">
+            <button v-if="canManageFinance" class="p-1 rounded hover:bg-muted" title="Editar" @click="openEditInvoice(row)">
+              <Pencil :size="16" />
             </button>
-            <button v-if="canManageFinance" class="p-2 rounded-md hover:bg-muted text-destructive hover:bg-destructive/10" title="Eliminar" @click="deleteInvoice = row">
-              <Trash2 :size="15" />
+            <button v-if="canManageFinance" class="p-1 rounded hover:bg-muted text-destructive hover:bg-destructive/10" title="Eliminar" @click="deleteInvoice = row">
+              <Trash2 :size="16" />
             </button>
           </div>
         </template>

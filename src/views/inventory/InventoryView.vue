@@ -16,6 +16,7 @@ import FormField from '@/components/common/FormField.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import AppInput from '@/components/common/AppInput.vue'
 import AppSelect from '@/components/common/AppSelect.vue'
+import AppMultiSelect from '@/components/common/AppMultiSelect.vue'
 import AppTextarea from '@/components/common/AppTextarea.vue'
 
 const { canManageInventory } = usePermissions()
@@ -307,27 +308,21 @@ const needsDestination = (type) => ['AJUSTE_POSITIVO'].includes(type)
 
     <!-- ── STOCK ── -->
     <template v-if="activeTab === 'Stock'">
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-xl bg-card border border-border shadow-sm mb-4">
-        <div class="relative col-span-2">
-          <Search :size="18" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <AppInput
-            type="text"
-            placeholder="Buscar producto..."
-            :model-value="stockList.params.search"
-            @update:model-value="stockList.setParam('search', $event)"
-            class="pl-10"
-          />
-        </div>
-        <AppSelect
-          :model-value="stockList.params.warehouse"
-          @update:model-value="stockList.setParam('warehouse', $event)"
-        >
-          <option value="">Todas las bodegas</option>
-          <option v-for="w in warehouses" :key="w.uuid" :value="w.uuid">{{ w.name }}</option>
-        </AppSelect>
-      </div>
       <AppAlert v-if="stockList.error.value" type="error" :message="stockList.error.value" />
       <AppTable :columns="stockColumns" :rows="stockList.items.value" :loading="stockList.loading.value">
+        <template #filter-product>
+           <AppInput type="text" placeholder="Buscar..." :model-value="stockList.params.search" @update:model-value="stockList.setParam('search', $event)" />
+        </template>
+        <template #filter-warehouse>
+          <AppSelect
+            :model-value="stockList.params.warehouse"
+            @update:model-value="stockList.setParam('warehouse', $event)"
+          >
+            <option value="">Todas</option>
+            <option v-for="w in warehouses" :key="w.uuid" :value="w.uuid">{{ w.name }}</option>
+          </AppSelect>
+        </template>
+        
         <template #product="{ row }">{{ row.product_detail?.name ?? '—' }}</template>
         <template #warehouse="{ row }">{{ row.warehouse_detail?.name ?? '—' }}</template>
         <template #quantity="{ row }">{{ fmt(row.quantity) }}</template>
@@ -377,18 +372,17 @@ const needsDestination = (type) => ['AJUSTE_POSITIVO'].includes(type)
 
     <!-- ── MOVIMIENTOS ── -->
     <template v-if="activeTab === 'Movimientos'">
-      <div class="p-4 rounded-xl bg-card border border-border shadow-sm mb-4">
-        <AppSelect
-          :model-value="movList.params.movement_type"
-          @update:model-value="movList.setParam('movement_type', $event)"
-        >
-          <option value="">Todos los tipos</option>
-          <option v-for="t in MOV_TYPES_WRITE" :key="t.value" :value="t.value">{{ t.label }}</option>
-        </AppSelect>
-      </div>
       <AppAlert v-if="movList.error.value" type="error" :message="movList.error.value" />
 
       <AppTable :columns="movColumns" :rows="movList.items.value" :loading="movList.loading.value">
+        <template #filter-movement_type>
+          <AppMultiSelect
+            :options="MOV_TYPES_WRITE"
+            :modelValue="movList.params.movement_type ? [movList.params.movement_type] : []"
+            @update:modelValue="movList.setParam('movement_type', $event[0] || '')"
+          />
+        </template>
+
         <template #movement_type="{ row }"><StatusBadge :status="row.movement_type" /></template>
         <template #product="{ row }">{{ row.product_detail?.name ?? '—' }}</template>
         <template #quantity="{ row }">{{ fmt(row.quantity) }}</template>
@@ -406,27 +400,19 @@ const needsDestination = (type) => ['AJUSTE_POSITIVO'].includes(type)
 
     <!-- ── BODEGAS ── -->
     <template v-if="activeTab === 'Bodegas'">
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-xl bg-card border border-border shadow-sm mb-4">
-        <div class="relative col-span-2">
-          <Search :size="18" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <AppInput
-            type="text"
-            placeholder="Buscar bodega..."
-            :model-value="warehouseList.params.search"
-            @update:model-value="warehouseList.setParam('search', $event)"
-          />
-        </div>
-        <AppSelect
-          :model-value="warehouseList.params.is_active"
-          @update:model-value="warehouseList.setParam('is_active', $event)"
-        >
-          <option value="">Todas</option>
-          <option value="true">Activas</option>
-          <option value="false">Inactivas</option>
-        </AppSelect>
-      </div>
       <AppAlert v-if="warehouseList.error.value" type="error" :message="warehouseList.error.value" />
       <AppTable :columns="warehouseColumns" :rows="warehouseList.items.value" :loading="warehouseList.loading.value">
+        <template #filter-name>
+          <AppInput type="text" placeholder="Buscar..." :model-value="warehouseList.params.search" @update:model-value="warehouseList.setParam('search', $event)" />
+        </template>
+        <template #filter-is_active>
+          <AppMultiSelect
+            :options="[{value:'true', label:'Activas'}, {value:'false', label:'Inactivas'}]"
+            :modelValue="warehouseList.params.is_active ? [warehouseList.params.is_active] : []"
+            @update:modelValue="warehouseList.setParam('is_active', $event[0] || '')"
+          />
+        </template>
+
         <template #branch="{ row }">{{ row.branch_detail?.name ?? '—' }}</template>
         <template #warehouse_type="{ row }">
           <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground">{{ row.warehouse_type ?? '—' }}</span>
@@ -437,12 +423,12 @@ const needsDestination = (type) => ['AJUSTE_POSITIVO'].includes(type)
           </span>
         </template>
         <template #actions="{ row }">
-          <div class="flex gap-1.5 flex-wrap">
-            <button v-if="canManageInventory" class="grid place-items-center w-9 h-9 border border-border rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-all" title="Editar" @click="openEditWarehouse(row)">
-              <Pencil :size="15" />
+          <div class="flex gap-1.5 justify-end">
+            <button v-if="canManageInventory" class="p-1 rounded hover:bg-muted" title="Editar" @click="openEditWarehouse(row)">
+              <Pencil :size="16" />
             </button>
-            <button v-if="canManageInventory" class="grid place-items-center w-9 h-9 border border-border rounded-sm text-muted-foreground hover:bg-destructive/10 hover:text-destructive hover:border-destructive/20 transition-all" title="Eliminar" @click="deleteWarehouse = row">
-              <Trash2 :size="15" />
+            <button v-if="canManageInventory" class="p-1 rounded hover:bg-muted text-destructive hover:bg-destructive/10" title="Eliminar" @click="deleteWarehouse = row">
+              <Trash2 :size="16" />
             </button>
           </div>
         </template>

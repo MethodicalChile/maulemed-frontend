@@ -1,6 +1,6 @@
 <script setup>
 import { ref, nextTick, watch } from 'vue'
-import { X, Send } from 'lucide-vue-next'
+import { X, Send, RotateCcw } from 'lucide-vue-next'
 import { GoogleGenAI } from '@google/genai'
 
 const isOpen = ref(false)
@@ -10,6 +10,10 @@ const newMessage = ref('')
 const messagesContainer = ref(null)
 
 const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_API_KEY_GEMINI })
+
+function resetChat() {
+  messages.value = [{ text: '¡Hola! ¿En qué puedo ayudarte?', sender: 'bot' }]
+}
 
 function scrollToBottom() {
   nextTick(() => {
@@ -83,7 +87,10 @@ async function sendMessage() {
       <div v-if="isOpen" class="fixed bottom-24 right-6 z-50 w-80 h-96 bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden">
         <div class="flex items-center justify-between p-4 bg-primary text-primary-foreground">
           <span class="font-bold">Asistente MauleMed</span>
-          <button @click="toggleChat" class="hover:bg-primary/20 p-1 rounded"><X :size="18" /></button>
+          <div class="flex items-center gap-1">
+            <button @click="resetChat" class="hover:bg-primary/20 p-1 rounded" title="Limpiar chat"><RotateCcw :size="18" /></button>
+            <button @click="toggleChat" class="hover:bg-primary/20 p-1 rounded"><X :size="18" /></button>
+          </div>
         </div>
         
         <div ref="messagesContainer" class="flex-1 p-4 overflow-y-auto space-y-3 bg-muted/20">

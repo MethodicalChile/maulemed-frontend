@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { Plus, Pencil, Eye, Search, Send, CheckCircle, XCircle, Truck, AlertTriangle } from 'lucide-vue-next'
 import { purchasingApi } from '@/api/purchasing.api'
 import { optionsApi } from '@/api/options.api'
@@ -15,6 +15,7 @@ import StatusBadge from '@/components/common/StatusBadge.vue'
 import FormField from '@/components/common/FormField.vue'
 import AppInput from '@/components/common/AppInput.vue'
 import AppSelect from '@/components/common/AppSelect.vue'
+import AppMultiSelect from '@/components/common/AppMultiSelect.vue'
 import AppTextarea from '@/components/common/AppTextarea.vue'
 
 const {
@@ -27,12 +28,45 @@ const {
 const tabs = ['Solicitudes', 'Órdenes de Compra', 'Recepciones', 'Reclamos']
 const activeTab = ref('Solicitudes')
 
+const headerButton = computed(() => {
+  if (activeTab.value === 'Solicitudes' && canCreateSupplyRequest) {
+    return { label: 'Nueva solicitud', action: openCreateSR }
+  }
+  if (activeTab.value === 'Órdenes de Compra' && canManagePurchaseOrders) {
+    return { label: 'Nueva orden', action: openCreatePO }
+  }
+  if (activeTab.value === 'Recepciones' && canReceivePurchase) {
+    return { label: 'Nueva recepción', action: openCreateReceipt }
+  }
+  if (activeTab.value === 'Reclamos' && canManagePurchaseOrders) {
+    return { label: 'Nuevo reclamo', action: openCreateClaim }
+  }
+  return null
+})
+
 // ─── OPTIONS ────────────────────────────────────────────────────────────────
 const branches  = ref([])
 const suppliers = ref([])
 const warehouses = ref([])
 const products  = ref([])
 const purchaseOrders = ref([])
+
+const SR_STATUS_OPTIONS = [
+  { value: 'BORRADOR', label: 'Borrador' },
+  { value: 'ENVIADA', label: 'Enviada' },
+  { value: 'EN_REVISION', label: 'En revisión' },
+  { value: 'OBSERVADA', label: 'Observada' },
+  { value: 'APROBADA', label: 'Aprobada' },
+  { value: 'RECHAZADA', label: 'Rechazada' },
+]
+const PO_STATUS_OPTIONS = [
+  { value: 'BORRADOR', label: 'Borrador' },
+  { value: 'EN_APROBACION', label: 'En aprobación' },
+  { value: 'APROBADA', label: 'Aprobada' },
+  { value: 'ENVIADA_PROVEEDOR', label: 'Enviada a proveedor' },
+  { value: 'RECIBIDA', label: 'Recibida' },
+  { value: 'CANCELADA', label: 'Cancelada' },
+]
 
 // ─── SOLICITUDES ─────────────────────────────────────────────────────────────
 const srColumns = [
@@ -167,27 +201,26 @@ async function removePOItem(itemUuid) {
 }
 
 // ─── RECLAMOS A PROVEEDORES ──────────────────────────────────────────────────
-const claimColumns = [
-  { key: 'supplier',    label: 'Proveedor' },
-  { key: 'claim_type',  label: 'Tipo' },
-  { key: 'status',      label: 'Estado' },
-  { key: 'description', label: 'Descripción' },
-  { key: 'created_at',  label: 'Fecha' },
-  { key: 'actions',     label: '', width: '100px' },
-]
-const claimList = useList(purchasingApi.listSupplierClaims)
-const showClaimModal    = ref(false)
-const editingClaim      = ref(null)
-const showClaimDetail   = ref(false)
-const viewingClaim      = ref(null)
-const claimActionError  = ref('')
-
 const CLAIM_TYPES = [
   { value: 'DEVOLUCION_PRODUCTO', label: 'Devolución de producto' },
   { value: 'NOTA_CREDITO',        label: 'Nota de crédito' },
   { value: 'REPOSICION',          label: 'Reposición' },
   { value: 'CAMBIO_PRODUCTO',     label: 'Cambio de producto' },
 ]
+
+const CLAIM_STATUS_OPTIONS = [
+  { value: 'ABIERTO', label: 'Abierto' },
+  { value: 'EN_GESTION', label: 'En gestión' },
+  { value: 'RESUELTO', label: 'Resuelto' },
+  { value: 'CANCELADO', label: 'Cancelado' },
+]
+
+const claimList = useList(purchasingApi.listSupplierClaims)
+const showClaimModal    = ref(false)
+const editingClaim      = ref(null)
+const showClaimDetail   = ref(false)
+const viewingClaim      = ref(null)
+const claimActionError  = ref('')
 
 const emptyClaimForm = {
   supplier: '', purchase_receipt: '', claim_type: 'DEVOLUCION_PRODUCTO',
@@ -509,18 +542,26 @@ function fmtDate(val) {
 <template>
   <section class="page">
     <PageHeader title="Compras" subtitle="Solicitudes, órdenes de compra y recepciones">
-      <button v-if="activeTab === 'Solicitudes' && canCreateSupplyRequest" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all" @click="openCreateSR">
-        <Plus :size="16" /> Nueva solicitud
-      </button>
-      <button v-if="activeTab === 'Órdenes de Compra' && canManagePurchaseOrders" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all" @click="openCreatePO">
-        <Plus :size="16" /> Nueva orden
-      </button>
-      <button v-if="activeTab === 'Recepciones' && canReceivePurchase" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all" @click="openCreateReceipt">
-        <Plus :size="16" /> Nueva recepción
-      </button>
-      <button v-if="activeTab === 'Reclamos' && canManagePurchaseOrders" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all" @click="openCreateClaim">
-        <Plus :size="16" /> Nuevo reclamo
-      </button>
+      <template v-if="activeTab === 'Solicitudes' && canCreateSupplyRequest">
+        <button class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all" @click="openCreateSR">
+          <Plus :size="16" /> Nueva solicitud
+        </button>
+      </template>
+      <template v-else-if="activeTab === 'Órdenes de Compra' && canManagePurchaseOrders">
+        <button class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all" @click="openCreatePO">
+          <Plus :size="16" /> Nueva orden
+        </button>
+      </template>
+      <template v-else-if="activeTab === 'Recepciones' && canReceivePurchase">
+        <button class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all" @click="openCreateReceipt">
+          <Plus :size="16" /> Nueva recepción
+        </button>
+      </template>
+      <template v-else-if="activeTab === 'Reclamos' && canManagePurchaseOrders">
+        <button class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all" @click="openCreateClaim">
+          <Plus :size="16" /> Nuevo reclamo
+        </button>
+      </template>
     </PageHeader>
 
     <div class="flex border-b border-border mb-6">
@@ -531,26 +572,18 @@ function fmtDate(val) {
 
     <!-- ── SOLICITUDES ── -->
     <template v-if="activeTab === 'Solicitudes'">
-      <div class="filters-row">
-        <AppSelect :modelValue="srList.params.status" @update:modelValue="srList.setParam('status', $event)">
-          <option value="">Todos los estados</option>
-          <option value="BORRADOR">Borrador</option>
-          <option value="ENVIADA">Enviada</option>
-          <option value="EN_REVISION">En revisión</option>
-          <option value="OBSERVADA">Observada</option>
-          <option value="APROBADA">Aprobada</option>
-          <option value="RECHAZADA">Rechazada</option>
-        </AppSelect>
-      </div>
       <AppAlert v-if="srList.error.value" type="error" :message="srList.error.value" />
       <AppTable :columns="srColumns" :rows="srList.items.value" :loading="srList.loading.value">
+        <template #filter-status>
+           <AppMultiSelect :options="SR_STATUS_OPTIONS" :modelValue="srList.params.status || []" @update:modelValue="srList.setParam('status', $event)" />
+        </template>
         <template #branch="{ row }">{{ row.branch_detail?.name ?? '—' }}</template>
         <template #period="{ row }">{{ row.period_month }}/{{ row.period_year }}</template>
         <template #status="{ row }"><StatusBadge :status="row.status" /></template>
         <template #requested_by="{ row }">{{ row.requested_by_detail?.full_name ?? '—' }}</template>
         <template #actions="{ row }">
-          <div class="row-actions">
-            <button class="icon-btn" title="Ver / gestionar" @click="openSRDetail(row)"><Eye :size="15" /></button>
+          <div class="flex gap-1 justify-end">
+            <button class="p-1 rounded hover:bg-muted" title="Ver / gestionar" @click="openSRDetail(row)"><Eye :size="16" /></button>
           </div>
         </template>
       </AppTable>
@@ -559,49 +592,41 @@ function fmtDate(val) {
 
     <!-- ── ÓRDENES DE COMPRA ── -->
     <template v-if="activeTab === 'Órdenes de Compra'">
-      <div class="filters-row">
-        <div class="search-input relative">
-          <Search :size="16" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <AppInput type="text" placeholder="Buscar por N° orden..." :modelValue="poList.params.search" @update:modelValue="poList.setParam('search', $event)" class="pl-10" />
-        </div>
-        <AppSelect :modelValue="poList.params.status" @update:modelValue="poList.setParam('status', $event)">
-          <option value="">Todos los estados</option>
-          <option value="BORRADOR">Borrador</option>
-          <option value="EN_APROBACION">En aprobación</option>
-          <option value="APROBADA">Aprobada</option>
-          <option value="ENVIADA_PROVEEDOR">Enviada a proveedor</option>
-          <option value="RECIBIDA">Recibida</option>
-          <option value="CANCELADA">Cancelada</option>
-        </AppSelect>
-      </div>
       <AppAlert v-if="poList.error.value || poActionError" type="error" :message="poList.error.value || poActionError" />
       <AppTable :columns="poColumns" :rows="poList.items.value" :loading="poList.loading.value || poActionLoading">
+        <template #filter-order_number>
+          <AppInput type="text" placeholder="Buscar..." :modelValue="poList.params.search" @update:modelValue="poList.setParam('search', $event)" class="w-full" />
+        </template>
+        <template #filter-status>
+           <AppMultiSelect :options="PO_STATUS_OPTIONS" :modelValue="poList.params.status || []" @update:modelValue="poList.setParam('status', $event)" />
+        </template>
+
         <template #supplier="{ row }">{{ row.supplier_detail?.name ?? '—' }}</template>
         <template #branch="{ row }">{{ row.branch_detail?.name ?? '—' }}</template>
         <template #status="{ row }"><StatusBadge :status="row.status" /></template>
         <template #total_amount="{ row }">{{ fmt(row.total_amount) }}</template>
         <template #actions="{ row }">
-          <div class="row-actions">
-            <button v-if="canManagePurchaseOrders" class="icon-btn" title="Ver ítems" @click="openPODetail(row)">
-              <Eye :size="15" />
+          <div class="flex gap-1 justify-end">
+            <button v-if="canManagePurchaseOrders" class="p-1 rounded hover:bg-muted" title="Ver ítems" @click="openPODetail(row)">
+              <Eye :size="16" />
             </button>
-            <button v-if="canManagePurchaseOrders" class="icon-btn" title="Editar" @click="editingPO = row; poFill({ ...row }); poActionError = ''; showPOModal = true">
-              <Pencil :size="15" />
+            <button v-if="canManagePurchaseOrders" class="p-1 rounded hover:bg-muted" title="Editar" @click="editingPO = row; poFill({ ...row }); poActionError = ''; showPOModal = true">
+              <Pencil :size="16" />
             </button>
-            <button v-if="canManagePurchaseOrders && row.status === 'BORRADOR'" class="icon-btn" title="Enviar a aprobación" @click="poAction('sendToApproval', row)">
-              <Send :size="15" />
+            <button v-if="canManagePurchaseOrders && row.status === 'BORRADOR'" class="p-1 rounded hover:bg-muted" title="Enviar a aprobación" @click="poAction('sendToApproval', row)">
+              <Send :size="16" />
             </button>
-            <button v-if="canManagePurchaseOrders && row.status === 'EN_APROBACION'" class="icon-btn" title="Aprobar orden" @click="poAction('approve', row)">
-              <CheckCircle :size="15" />
+            <button v-if="canManagePurchaseOrders && row.status === 'EN_APROBACION'" class="p-1 rounded hover:bg-muted" title="Aprobar orden" @click="poAction('approve', row)">
+              <CheckCircle :size="16" />
             </button>
-            <button v-if="canManagePurchaseOrders && row.status === 'APROBADA'" class="icon-btn" title="Enviar a proveedor" @click="poAction('send', row)">
-              <Truck :size="15" />
+            <button v-if="canManagePurchaseOrders && row.status === 'APROBADA'" class="p-1 rounded hover:bg-muted" title="Enviar a proveedor" @click="poAction('send', row)">
+              <Truck :size="16" />
             </button>
-            <button v-if="canManagePurchaseOrders && !['CANCELADA','CERRADA','RECIBIDA'].includes(row.status)" class="icon-btn" title="Cancelar" @click="poAction('cancel', row)">
-              <XCircle :size="15" />
+            <button v-if="canManagePurchaseOrders && !['CANCELADA','CERRADA','RECIBIDA'].includes(row.status)" class="p-1 rounded hover:bg-muted" title="Cancelar" @click="poAction('cancel', row)">
+              <XCircle :size="16" />
             </button>
-            <button v-if="canManagePurchaseOrders && row.status === 'RECIBIDA'" class="icon-btn" title="Cerrar OC" @click="poAction('close', row)">
-              <CheckCircle :size="15" />
+            <button v-if="canManagePurchaseOrders && row.status === 'RECIBIDA'" class="p-1 rounded hover:bg-muted" title="Cerrar OC" @click="poAction('close', row)">
+              <CheckCircle :size="16" />
             </button>
           </div>
         </template>
@@ -613,18 +638,22 @@ function fmtDate(val) {
     <template v-if="activeTab === 'Recepciones'">
       <AppAlert v-if="receiptList.error.value || receiptActionError" type="error" :message="receiptList.error.value || receiptActionError" />
       <AppTable :columns="receiptColumns" :rows="receiptList.items.value" :loading="receiptList.loading.value">
+        <template #filter-purchase_order>
+           <AppInput type="text" placeholder="Buscar..." :model-value="receiptList.params.search" @update:model-value="receiptList.setParam('search', $event)" />
+        </template>
+        
         <template #purchase_order="{ row }">{{ row.purchase_order_detail?.order_number ?? '—' }}</template>
         <template #branch="{ row }">{{ row.branch_detail?.name ?? '—' }}</template>
         <template #warehouse="{ row }">{{ row.warehouse_detail?.name ?? '—' }}</template>
         <template #status="{ row }"><StatusBadge :status="row.status" /></template>
         <template #received_at="{ row }">{{ fmtDate(row.received_at) }}</template>
         <template #actions="{ row }">
-          <div class="row-actions">
-            <button class="icon-btn" title="Ver ítems" @click="openReceiptDetail(row)">
-              <Eye :size="15" />
+          <div class="flex gap-1 justify-end">
+            <button class="p-1 rounded hover:bg-muted" title="Ver ítems" @click="openReceiptDetail(row)">
+              <Eye :size="16" />
             </button>
-            <button v-if="canReceivePurchase && row.status !== 'PROCESADO'" class="icon-btn" title="Procesar recepción" @click="processReceipt(row)">
-              <Truck :size="15" />
+            <button v-if="canReceivePurchase && row.status !== 'PROCESADO'" class="p-1 rounded hover:bg-muted" title="Procesar recepción" @click="processReceipt(row)">
+              <Truck :size="16" />
             </button>
           </div>
         </template>
@@ -634,33 +663,27 @@ function fmtDate(val) {
 
     <!-- ── RECLAMOS ── -->
     <template v-if="activeTab === 'Reclamos'">
-      <div class="filters-row">
-        <AppSelect :modelValue="claimList.params.status" @update:modelValue="claimList.setParam('status', $event)">
-          <option value="">Todos los estados</option>
-          <option value="ABIERTO">Abierto</option>
-          <option value="EN_GESTION">En gestión</option>
-          <option value="RESUELTO">Resuelto</option>
-          <option value="CANCELADO">Cancelado</option>
-        </AppSelect>
-        <AppSelect :modelValue="claimList.params.claim_type" @update:modelValue="claimList.setParam('claim_type', $event)">
-          <option value="">Todos los tipos</option>
-          <option v-for="t in CLAIM_TYPES" :key="t.value" :value="t.value">{{ t.label }}</option>
-        </AppSelect>
-      </div>
       <AppAlert v-if="claimList.error.value || claimActionError" type="error" :message="claimList.error.value || claimActionError" />
       <AppTable :columns="claimColumns" :rows="claimList.items.value" :loading="claimList.loading.value">
+        <template #filter-status>
+           <AppMultiSelect :options="CLAIM_STATUS_OPTIONS" :modelValue="claimList.params.status || []" @update:modelValue="claimList.setParam('status', $event)" />
+        </template>
+        <template #filter-claim_type>
+           <AppMultiSelect :options="CLAIM_TYPES" :modelValue="claimList.params.claim_type || []" @update:modelValue="claimList.setParam('claim_type', $event)" />
+        </template>
+
         <template #supplier="{ row }">{{ row.supplier_detail?.name ?? '—' }}</template>
         <template #claim_type="{ row }">{{ claimTypeLabel(row.claim_type) }}</template>
         <template #status="{ row }"><StatusBadge :status="row.status" /></template>
         <template #description="{ row }">
-          <span style="max-width:260px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+          <span class="truncate max-w-[260px] block">
             {{ row.description ?? '—' }}
           </span>
         </template>
         <template #created_at="{ row }">{{ fmtDate(row.created_at) }}</template>
         <template #actions="{ row }">
-          <div class="row-actions">
-            <button class="icon-btn" title="Ver detalle" @click="openClaimDetail(row)"><Eye :size="15" /></button>
+          <div class="flex gap-1 justify-end">
+            <button class="p-1 rounded hover:bg-muted" title="Ver detalle" @click="openClaimDetail(row)"><Eye :size="16" /></button>
           </div>
         </template>
       </AppTable>

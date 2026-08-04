@@ -13,6 +13,11 @@ import AppPagination from '@/components/common/AppPagination.vue'
 import AppAlert from '@/components/common/AppAlert.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import FormField from '@/components/common/FormField.vue'
+import AppInput from '@/components/common/AppInput.vue'
+import AppSelect from '@/components/common/AppSelect.vue'
+import AppMultiSelect from '@/components/common/AppMultiSelect.vue'
+import AppTextarea from '@/components/common/AppTextarea.vue'
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 
 const { canManageTransfers } = usePermissions()
 
@@ -29,6 +34,21 @@ const columns = [
 const { items, loading, error, pagination, params, load, setPage, setParam } = useList(
   transfersApi.listTransfers
 )
+
+const STATUS_OPTIONS = [
+  { value: 'SOLICITADO', label: 'Solicitado' },
+  { value: 'APROBADO', label: 'Aprobado' },
+  { value: 'ENVIADO', label: 'Enviado' },
+  { value: 'RECIBIDO', label: 'Recibido' },
+  { value: 'CANCELADO', label: 'Cancelado' },
+  { value: 'CERRADO', label: 'Cerrado' },
+]
+
+const TYPE_OPTIONS = [
+  { value: 'TRASPASO', label: 'Traspaso' },
+  { value: 'PRESTAMO', label: 'Préstamo' },
+  { value: 'DEVOLUCION', label: 'Devolución' },
+]
 
 // ── Opciones ──────────────────────────────────────────────────────────────────
 const branches   = ref([])
@@ -194,7 +214,7 @@ function fmtQty(val) {
       </button>
     </PageHeader>
 
-    <div class="filters-row">
+    <div class="filters-row hidden">
       <div class="search-input">
         <Search :size="16" />
         <input type="text" placeholder="Buscar..." :value="params.search" @input="setParam('search', $event.target.value)" />
@@ -219,6 +239,16 @@ function fmtQty(val) {
     <AppAlert v-if="error" type="error" :message="error" />
 
     <AppTable :columns="columns" :rows="items" :loading="loading">
+      <template #filter-transfer_type>
+        <AppMultiSelect :options="TYPE_OPTIONS" :modelValue="params.transfer_type || []" @update:modelValue="setParam('transfer_type', $event)" />
+      </template>
+      <template #filter-status>
+        <AppMultiSelect :options="STATUS_OPTIONS" :modelValue="params.status || []" @update:modelValue="setParam('status', $event)" />
+      </template>
+      <template #filter-origin>
+        <AppInput type="text" placeholder="Buscar..." :model-value="params.search" @update:model-value="setParam('search', $event)" />
+      </template>
+        
       <template #transfer_type="{ row }"><StatusBadge :status="row.transfer_type" /></template>
       <template #status="{ row }"><StatusBadge :status="row.status" /></template>
       <template #origin="{ row }">{{ row.origin_branch_detail?.name ?? '—' }}</template>
@@ -226,9 +256,9 @@ function fmtQty(val) {
       <template #requested_by="{ row }">{{ row.requested_by_detail?.full_name ?? '—' }}</template>
       <template #requested_at="{ row }">{{ fmtDate(row.requested_at) }}</template>
       <template #actions="{ row }">
-        <div class="row-actions">
-          <button class="icon-btn" title="Ver detalle / gestionar" @click="openDetail(row)">
-            <Eye :size="15" />
+        <div class="flex gap-1 justify-end">
+          <button class="p-1 rounded hover:bg-muted" title="Ver detalle / gestionar" @click="openDetail(row)">
+            <Eye :size="16" />
           </button>
         </div>
       </template>

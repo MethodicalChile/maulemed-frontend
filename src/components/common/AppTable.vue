@@ -1,10 +1,19 @@
 <script setup>
-defineProps({
+import { useSlots, computed } from 'vue'
+
+const props = defineProps({
   columns:      { type: Array,   required: true },
   rows:         { type: Array,   default: () => [] },
   loading:      { type: Boolean, default: false },
   emptyMessage: { type: String,  default: 'No hay registros para mostrar.' },
   emptyIcon:    { type: String,  default: '📋' },
+})
+
+const slots = useSlots()
+// Verificación extra de seguridad para col y key
+const hasFilters = computed(() => {
+  if (!props.columns || !Array.isArray(props.columns)) return false
+  return props.columns.some(col => col && col.key && !!slots[`filter-${col.key}`])
 })
 </script>
 
@@ -22,6 +31,11 @@ defineProps({
             {{ col.label }}
           </th>
         </tr>
+        <tr v-if="hasFilters" class="border-b border-border bg-muted/20">
+          <td v-for="col in columns" :key="`filter-${col.key}`" class="p-2">
+            <slot v-if="col.key" :name="`filter-${col.key}`" />
+          </td>
+        </tr>
       </thead>
       <tbody>
         <!-- Skeleton rows mientras carga -->
@@ -33,9 +47,11 @@ defineProps({
           </tr>
         </template>
 
+
+
         <!-- Estado vacío mejorado -->
         <tr v-else-if="!rows.length">
-          <td :colspan="columns.length" class="p-0">
+          <td :colspan="columns ? columns.length : 1" class="p-0">
             <div class="flex flex-col items-center justify-center gap-2 p-12">
               <span class="text-4xl opacity-50">{{ emptyIcon }}</span>
               <p class="text-sm text-muted-foreground text-center">{{ emptyMessage }}</p>

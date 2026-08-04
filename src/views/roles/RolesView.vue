@@ -336,8 +336,8 @@ onMounted(() => { loadRoles(); loadMatrix() })
           <input v-model="matrixSearch" type="text" placeholder="Filtrar columnas por rol..." class="bg-transparent text-sm focus:outline-none" />
         </div>
         <div class="flex items-center gap-4 text-xs text-muted-foreground">
-          <div class="flex items-center gap-1"><span class="w-4 h-4 rounded-full bg-green-100 flex items-center justify-center text-green-700"><Check :size="10" /></span> Con acceso</div>
-          <div class="flex items-center gap-1"><span class="w-4 h-4 rounded-full bg-muted flex items-center justify-center text-muted-foreground"><X :size="10" /></span> Sin acceso</div>
+          <div class="flex items-center gap-1"><span class="flex items-center justify-center text-green-600"><Check :size="16" stroke-width="3" /></span> Con acceso</div>
+          <div class="flex items-center gap-1"><span class="flex items-center justify-center text-red-500"><X :size="16" stroke-width="3" /></span> Sin acceso</div>
           <div class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-primary"></span> Creado en BD</div>
         </div>
       </div>
@@ -383,7 +383,6 @@ onMounted(() => { loadRoles(); loadMatrix() })
                   :key="code"
                   class="text-center cursor-pointer p-1"
                   :class="[
-                    hasPerm(perm.key, code) ? 'bg-green-50' : '',
                     existingCodes.has(code) ? 'hover:bg-sky-100' : 'cursor-not-allowed',
                   ]"
                   :title="existingCodes.has(code)
@@ -393,11 +392,11 @@ onMounted(() => { loadRoles(); loadMatrix() })
                 >
                   <div class="flex justify-center items-center h-full">
                     <span v-if="isSaving(perm.key, code)" class="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></span>
-                    <span v-else-if="hasPerm(perm.key, code)" class="w-5 h-5 flex items-center justify-center rounded-full bg-green-100 text-green-700">
-                      <Check :size="12" />
+                    <span v-else-if="hasPerm(perm.key, code)" class="w-5 h-5 flex items-center justify-center rounded-full text-green-600 font-bold">
+                      <Check :size="16" stroke-width="3" />
                     </span>
-                    <span v-else class="w-5 h-5 flex items-center justify-center rounded-full bg-muted text-muted-foreground">
-                      <X :size="10" />
+                    <span v-else class="w-5 h-5 flex items-center justify-center rounded-full text-red-500 font-bold">
+                      <X :size="16" stroke-width="3" />
                     </span>
                   </div>
                 </td>
@@ -460,9 +459,9 @@ onMounted(() => { loadRoles(); loadMatrix() })
         <!-- Preview de accesos si ya existe en la matriz -->
         <div
           v-if="roleForm.code && permCount(roleForm.code) > 0"
-          class="bg-green-50 border border-green-200 rounded-md p-4 mt-2"
+          class="bg-card border rounded-md p-4 mt-2"
         >
-          <p class="text-sm font-semibold text-green-800 mb-2 flex items-center justify-between">
+          <p class="text-sm font-semibold text-foreground mb-2 flex items-center justify-between">
             Accesos del sistema
             <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800">{{ permCount(roleForm.code) }} accesos</span>
           </p>
@@ -473,7 +472,7 @@ onMounted(() => { loadRoles(); loadMatrix() })
                 :key="perm.key"
                 class="flex items-center gap-2"
               >
-                <Check :size="12" class="text-green-600 flex-shrink-0" />
+                <Check :size="16" stroke-width="3" class="text-green-600 flex-shrink-0" />
                 <span><strong>{{ mod.module }}</strong> — {{ perm.action }}</span>
               </div>
             </template>

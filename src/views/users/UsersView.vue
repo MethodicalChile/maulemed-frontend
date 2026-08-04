@@ -14,6 +14,12 @@ import FormField from '@/components/common/FormField.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import AppInput from '@/components/common/AppInput.vue'
 import AppSelect from '@/components/common/AppSelect.vue'
+import AppMultiSelect from '@/components/common/AppMultiSelect.vue'
+
+const ACTIVE_STATUS_OPTIONS = [
+  { value: 'true', label: 'Activos' },
+  { value: 'false', label: 'Inactivos' },
+]
 
 // ── Tabla ─────────────────────────────────────────────────────────────────────
 const columns = [
@@ -304,33 +310,17 @@ async function confirmToggle() {
       </button>
     </PageHeader>
 
-    <!-- Filtro búsqueda -->
-    <div class="flex items-center gap-4">
-      <div class="flex items-center gap-2 px-3 py-2 border rounded-md">
-        <Search :size="16" class="text-muted-foreground" />
-        <AppInput
-          type="text"
-          placeholder="Buscar por nombre, usuario o email..."
-          class="bg-transparent text-sm focus:outline-none"
-          :model-value="userList.params.search"
-          @update:model-value="userList.setParam('search', $event)"
-        />
-      </div>
-      <AppSelect
-        class="text-sm"
-        :model-value="userList.params.is_active"
-        @update:model-value="userList.setParam('is_active', $event)"
-      >
-        <option value="">Todos</option>
-        <option value="true">Activos</option>
-        <option value="false">Inactivos</option>
-      </AppSelect>
-    </div>
-
     <AppAlert v-if="userList.error.value" type="error" :message="userList.error.value" />
 
     <!-- Tabla -->
     <AppTable :columns="columns" :rows="userList.items.value" :loading="userList.loading.value">
+      <template #filter-full_name>
+        <AppInput type="text" placeholder="Buscar..." :model-value="userList.params.search" @update:model-value="userList.setParam('search', $event)" />
+      </template>
+      <template #filter-is_active>
+        <AppMultiSelect :options="ACTIVE_STATUS_OPTIONS" :modelValue="userList.params.is_active ? [userList.params.is_active] : []" @update:modelValue="userList.setParam('is_active', $event[0] || ''); userList.load()" />
+      </template>
+
       <template #full_name="{ row }">
         <div class="flex items-center gap-3">
           <div class="w-9 h-9 flex items-center justify-center rounded-full bg-primary text-white font-bold text-sm">

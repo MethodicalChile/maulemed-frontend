@@ -509,11 +509,11 @@ async function submitMyEvaluation() {
     </PageHeader>
 
     <!-- ── TABS ── -->
-    <div class="tab-bar">
+    <div class="flex border-b border-border mb-6">
       <button
         v-for="tab in tabs"
         :key="tab.key"
-        :class="['tab-btn', { active: activeTab === tab.key }]"
+        :class="['px-4 py-2 text-sm font-semibold border-b-2 transition-colors', activeTab === tab.key ? 'text-primary border-primary' : 'text-muted-foreground hover:text-foreground border-transparent']"
         @click="activeTab = tab.key; tab.key === 'questions' ? loadQuestions() : tab.key === 'results' ? loadResults() : loadMine()"
       >
         {{ tab.label }}
@@ -525,14 +525,15 @@ async function submitMyEvaluation() {
          ════════════════════════════════════════════════════════════════ -->
     <template v-if="activeTab === 'questions'">
 
-      <div class="filters-row">
-        <div class="search-input">
-          <Search :size="16" />
+      <div class="flex items-center gap-4 mb-6">
+        <div class="relative w-full md:w-64">
+          <Search :size="16" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
             :value="questionList.params.search"
             type="text"
             placeholder="Buscar formulario..."
             @input="questionList.setParam('search', $event.target.value)"
+            class="w-full pl-10 pr-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
           />
         </div>
       </div>
@@ -570,40 +571,40 @@ async function submitMyEvaluation() {
         </template>
 
         <template #actions="{ row }">
-          <div class="row-actions">
+          <div class="flex gap-2">
             <!-- Ver preguntas (siempre) -->
-            <button class="icon-btn" title="Ver preguntas" @click="openDetail(row)">
-              <Eye :size="14" />
+            <button class="p-1 rounded hover:bg-muted" title="Ver preguntas" @click="openDetail(row)">
+              <Eye :size="16" />
             </button>
 
             <!-- Editar (bloqueado si ya está publicado) -->
             <button
               v-if="canWrite"
-              class="icon-btn"
+              class="p-1 rounded hover:bg-muted"
               :title="row.is_published_in_google ? 'Formulario publicado — editar solo descripción' : 'Editar'"
               @click="openEditForm(row)"
             >
-              <Pencil :size="14" />
+              <Pencil :size="16" />
             </button>
 
             <!-- Toggle activo -->
             <button
               v-if="canWrite"
-              :class="['icon-btn', row.is_active ? 'icon-btn--danger' : '']"
+              :class="['p-1 rounded hover:bg-muted', row.is_active ? 'text-destructive' : '']"
               :title="row.is_active ? 'Desactivar' : 'Activar'"
               @click="toggleActive(row)"
             >
-              <component :is="row.is_active ? ToggleRight : ToggleLeft" :size="14" />
+              <component :is="row.is_active ? ToggleRight : ToggleLeft" :size="16" />
             </button>
 
             <!-- Eliminar -->
             <button
               v-if="canWrite"
-              class="icon-btn icon-btn--danger"
+              class="p-1 rounded hover:bg-muted text-destructive"
               title="Eliminar"
               @click="deleteFormTarget = row"
             >
-              <Trash2 :size="14" />
+              <Trash2 :size="16" />
             </button>
 
             <!-- ── Acciones Google Forms ── -->
@@ -611,12 +612,12 @@ async function submitMyEvaluation() {
             <!-- Publicar (solo si NO está publicado y NO está sincronizando) -->
             <button
               v-if="canWrite && !row.is_published_in_google && row.google_sync_status !== 'SYNCING'"
-              class="icon-btn"
+              class="p-1 rounded hover:bg-muted"
               :disabled="publishingUuid === row.uuid"
               title="Publicar en Google Forms"
               @click="requestPublish(row)"
             >
-              <Upload v-if="publishingUuid !== row.uuid" :size="14" />
+              <Upload v-if="publishingUuid !== row.uuid" :size="16" />
               <span v-else class="mini-spinner" />
             </button>
 
@@ -626,10 +627,10 @@ async function submitMyEvaluation() {
               :href="row.google_form_url"
               target="_blank"
               rel="noopener noreferrer"
-              class="icon-btn"
+              class="p-1 rounded hover:bg-muted"
               title="Abrir formulario"
             >
-              <ExternalLink :size="14" />
+              <ExternalLink :size="16" />
             </a>
 
             <!-- Abrir edición (solo si publicado) -->
@@ -638,64 +639,64 @@ async function submitMyEvaluation() {
               :href="row.google_form_edit_url"
               target="_blank"
               rel="noopener noreferrer"
-              class="icon-btn"
+              class="p-1 rounded hover:bg-muted"
               title="Editar en Google Forms"
             >
-              <Pencil :size="14" />
+              <Pencil :size="16" />
             </a>
 
             <!-- Copiar enlace -->
             <button
               v-if="row.is_published_in_google"
-              class="icon-btn"
+              class="p-1 rounded hover:bg-muted"
               :title="copySuccessUuid === row.uuid ? '¡Copiado!' : 'Copiar enlace'"
               @click="copyFormLink(row)"
             >
-              <Copy :size="14" />
+              <Copy :size="16" />
             </button>
 
             <!-- Compartir WhatsApp -->
             <button
               v-if="row.is_published_in_google"
-              class="icon-btn"
+              class="p-1 rounded hover:bg-muted"
               title="Compartir por WhatsApp"
               @click="shareWhatsApp(row)"
             >
-              <MessageCircle :size="14" />
+              <MessageCircle :size="16" />
             </button>
 
             <!-- Ver QR -->
             <button
               v-if="row.is_published_in_google"
-              class="icon-btn"
+              class="p-1 rounded hover:bg-muted"
               title="Ver código QR"
               @click="openQR(row)"
             >
-              <QrCode :size="14" />
+              <QrCode :size="16" />
             </button>
 
             <!-- Re-sincronizar con Google Forms (solo publicados) -->
             <button
               v-if="canWrite && row.is_published_in_google"
-              class="icon-btn"
+              class="p-1 rounded hover:bg-muted"
               :disabled="resyncingUuid === row.uuid"
               title="Re-sincronizar preguntas con Google Forms"
               @click="requestResync(row)"
             >
               <RefreshCw
                 v-if="resyncingUuid !== row.uuid"
-                :size="14"
+                :size="16"
               />
               <span v-else class="mini-spinner" />
             </button>
 
             <!-- Ver respuestas -->
             <button
-              class="icon-btn"
+              class="p-1 rounded hover:bg-muted"
               title="Ver respuestas"
               @click="openResponses(row)"
             >
-              <BarChart2 :size="14" />
+              <BarChart2 :size="16" />
             </button>
           </div>
         </template>
@@ -713,22 +714,23 @@ async function submitMyEvaluation() {
          TAB: RESULTADOS
          ════════════════════════════════════════════════════════════════ -->
     <template v-if="activeTab === 'results'">
-
-        <div class="filters-row">
-          <AppSelect :modelValue="resultList.params.status" @update:modelValue="resultList.setParam('status', $event)">
-            <option value="">Todos los estados</option>
-            <option value="PENDING">Pendiente</option>
-            <option value="IN_PROGRESS">En progreso</option>
-            <option value="COMPLETED">Completada</option>
-            <option value="EXPIRED">Vencida</option>
-          </AppSelect>
-        </div>
-
-
       <AppAlert v-if="resultList.error.value" type="error" :message="resultList.error.value" />
 
       <AppTable :columns="RESULT_COLS" :rows="resultList.items.value" :loading="resultList.loading.value"
         empty-message="Aún no hay resultados. Llegarán desde la API de WhatsApp.">
+        
+        <template #filter-status>
+           <AppMultiSelect 
+             :options="[
+                { value: 'PENDING', label: 'Pendiente' },
+                { value: 'IN_PROGRESS', label: 'En progreso' },
+                { value: 'COMPLETED', label: 'Completada' },
+                { value: 'EXPIRED', label: 'Vencida' }
+             ]" 
+             :modelValue="resultList.params.status ? [resultList.params.status] : []" 
+             @update:modelValue="resultList.setParam('status', $event[0] || ''); resultList.load()" 
+           />
+        </template>
 
         <template #user="{ row }">
           <div class="user-cell-sm">
@@ -769,9 +771,10 @@ async function submitMyEvaluation() {
         </template>
 
         <template #actions="{ row }">
-          <div class="row-actions">
-            <button class="icon-btn" title="Ver respuestas" @click="openResult(row)">
-              <Eye :size="14" />
+          <div class="flex gap-1 justify-end">
+            <!-- Ver respuestas -->
+            <button class="p-1 rounded hover:bg-muted" title="Ver respuestas" @click="openResult(row)">
+              <Eye :size="16" />
             </button>
           </div>
         </template>
@@ -823,13 +826,13 @@ async function submitMyEvaluation() {
         </template>
 
         <template #actions="{ row }">
-          <div class="row-actions">
+          <div class="flex gap-1 justify-end">
             <button
-              :class="['icon-btn', row.status === 'COMPLETED' ? '' : 'icon-btn--primary']"
+              :class="['p-1 rounded hover:bg-muted', row.status === 'COMPLETED' ? '' : 'text-primary']"
               :title="row.status === 'COMPLETED' ? 'Ver respuestas' : 'Responder evaluación'"
               @click="openAnswerModal(row)"
             >
-              <Eye :size="14" />
+              <Eye :size="16" />
             </button>
           </div>
         </template>

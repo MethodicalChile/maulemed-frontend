@@ -400,7 +400,7 @@ function fmtQty(val) {
       </button>
     </PageHeader>
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-xl bg-card border border-border shadow-sm">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-xl bg-card border border-border shadow-sm hidden">
         <div class="relative col-span-2">
           <Search :size="18" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <AppInput
@@ -421,8 +421,18 @@ function fmtQty(val) {
     <AppAlert v-if="error" type="error" :message="error" />
 
     <div class="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-      <AppTable :columns="columns" :rows="items" :loading="loading">
-        <template #image="{ row }">
+    <AppTable :columns="columns" :rows="items" :loading="loading">
+      <template #filter-name>
+        <AppInput type="text" placeholder="Buscar..." :model-value="params.search" @update:model-value="setParam('search', $event)" />
+      </template>
+      <template #filter-category>
+        <AppSelect :model-value="params.category" @update:model-value="setParam('category', $event)">
+          <option value="">Todas</option>
+          <option v-for="c in categories" :key="c.uuid" :value="c.uuid">{{ c.name }}</option>
+        </AppSelect>
+      </template>
+      
+      <template #image="{ row }">
           <div class="w-12 h-12 rounded-lg border bg-blue-50 overflow-hidden flex items-center justify-center">
             <img v-if="row.image_url" :src="row.image_url" :alt="row.name" class="w-full h-full object-cover" />
             <ImagePlus v-else :size="20" class="text-primary/40" />
