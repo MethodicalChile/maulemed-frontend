@@ -486,7 +486,11 @@ function fmtQty(val) {
           <StarRating :model-value="Number(row.quality_rating ?? 0)" :readonly="true" />
         </template>
         <template #actions="{ row }">
-          <button class="grid place-items-center w-9 h-9 border border-border rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-all" @click="openActions(row)">
+          <button
+            v-if="canEditProducts || canDeleteProducts"
+            class="grid place-items-center w-9 h-9 border border-border rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
+            @click="openActions(row)"
+          >
             <MoreVertical :size="16" />
           </button>
         </template>

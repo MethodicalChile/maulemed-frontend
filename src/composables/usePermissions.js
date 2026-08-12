@@ -32,11 +32,21 @@ export function usePermissions() {
     canDeleteProducts:  computed(() => canAny('can_delete_products', 'can_manage_products')),
 
     // Proveedores
-    canManageSuppliers:  computed(() => can('can_manage_suppliers')),
-    canViewSuppliers:    computed(() => canAny('can_view_suppliers', 'can_manage_suppliers')),
-    canCreateSuppliers:  computed(() => canAny('can_create_suppliers', 'can_manage_suppliers')),
-    canEditSuppliers:    computed(() => canAny('can_edit_suppliers',   'can_manage_suppliers')),
-    canDeleteSuppliers:  computed(() => canAny('can_delete_suppliers', 'can_manage_suppliers')),
+    canViewSuppliers: computed(() =>
+      can('can_view_suppliers')
+    ),
+
+    canCreateSuppliers: computed(() =>
+      can('can_create_suppliers')
+    ),
+
+    canEditSuppliers: computed(() =>
+      can('can_edit_suppliers')
+    ),
+
+    canDeleteSuppliers: computed(() =>
+      can('can_delete_suppliers')
+    ),
 
     // Inventario
     canViewInventory:   computed(() => canAny('can_view_inventory', 'can_manage_inventory')),

@@ -1,6 +1,6 @@
 ﻿<script setup>
 import { onMounted, onUnmounted, ref } from 'vue'
-import { DollarSign, History, Pencil, Plus, Search, Trash2, XCircle, ImagePlus } from 'lucide-vue-next'
+import { DollarSign, History, Pencil, Plus, Search, Trash2, XCircle, ImagePlus, MoreVertical } from 'lucide-vue-next'
 import { suppliersApi } from '@/api/suppliers.api'
 import { optionsApi } from '@/api/options.api'
 import { useList } from '@/composables/useList'
@@ -18,7 +18,20 @@ import AppInput from '@/components/common/AppInput.vue'
 import AppSelect from '@/components/common/AppSelect.vue'
 import AppTextarea from '@/components/common/AppTextarea.vue'
 
-const { canCreateSuppliers, canEditSuppliers, canDeleteSuppliers, canManageSuppliers } = usePermissions()
+const {
+  canViewSuppliers,
+  canCreateSuppliers,
+  canEditSuppliers,
+  canDeleteSuppliers
+} = usePermissions()
+
+const showActionModal = ref(false)
+const activeActionRow = ref(null)
+
+function openActions(row) {
+  activeActionRow.value = row
+  showActionModal.value = true
+}
 
 const columns = [
   { key: 'name',          label: 'Nombre' },
@@ -34,6 +47,7 @@ const columns = [
 const { items, loading, error, pagination, params, load, setPage, setParam } = useList(
   suppliersApi.listSuppliers
 )
+
 
 const { setRefreshFunction, clearRefreshFunction } = useRefresh()
 onMounted(() => {
@@ -141,9 +155,17 @@ function openEdit(row) {
 async function handleSubmit() {
   formError.value = ''
   try {
+    const payload = { ...form };
+    if (payload.delivery_days === '') {
+      payload.delivery_days = null;
+    }
+    if (payload.rut === '') {
+      payload.rut = null;
+    }
+
     editingItem.value
-      ? await suppliersApi.updateSupplier(editingItem.value.uuid, form)
-      : await suppliersApi.createSupplier(form)
+      ? await suppliersApi.updateSupplier(editingItem.value.uuid, payload)
+      : await suppliersApi.createSupplier(payload)
     showForm.value = false
     load()
   } catch (err) {
@@ -311,7 +333,11 @@ function fmtDate(val) {
 <template>
   <section class="space-y-6">
     <PageHeader title="Proveedores" subtitle="Gestión de proveedores y sus precios">
-      <button v-if="canManageSuppliers" class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold bg-primary text-primary-foreground rounded-xl shadow-md hover:bg-primary/90 transition-all hover:scale-105" @click="openCreate">
+      <button
+        v-if="canCreateSuppliers"
+        class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold bg-primary text-primary-foreground rounded-xl shadow-md hover:bg-primary/90 transition-all hover:scale-105"
+        @click="openCreate"
+      >
         <Plus :size="18" /> Nuevo proveedor
       </button>
     </PageHeader>
@@ -347,19 +373,31 @@ function fmtDate(val) {
         </span>
       </template>
       <template #actions="{ row }">
-        <div class="flex gap-1 justify-end">
-          <button class="p-1 rounded hover:bg-muted" title="Productos y precios" @click="openProductsModal(row)">
-            <DollarSign :size="16" />
-          </button>
-          <button v-if="canManageSuppliers" class="p-1 rounded hover:bg-muted" title="Editar" @click="openEdit(row)">
-            <Pencil :size="16" />
-          </button>
-          <button v-if="canManageSuppliers" class="p-1 rounded hover:bg-muted text-destructive hover:bg-destructive/10" title="Eliminar" @click="deleteTarget = row">
-            <Trash2 :size="16" />
-          </button>
-        </div>
+        <button
+          v-if="canViewSuppliers || canEditSuppliers || canDeleteSuppliers"
+          class="grid place-items-center w-9 h-9 border border-border rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
+          @click="openActions(row)"
+        >
+          <MoreVertical :size="16" />
+        </button>
       </template>
+
     </AppTable>
+
+    <!-- Modal acciones -->
+    <AppModal v-if="showActionModal && activeActionRow" title="Acciones" size="sm" @close="showActionModal = false">
+      <div class="grid gap-2">
+        <button class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium" @click="openProductsModal(activeActionRow); showActionModal = false">
+          <DollarSign :size="16" /> Productos y precios
+        </button>
+        <button v-if="canEditSuppliers" class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium" @click="openEdit(activeActionRow); showActionModal = false">
+          <Pencil :size="16" /> Editar
+        </button>
+        <button v-if="canDeleteSuppliers" class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium text-destructive" @click="deleteTarget = activeActionRow; showActionModal = false">
+          <Trash2 :size="16" /> Eliminar
+        </button>
+      </div>
+    </AppModal>
 
     <AppPagination
       :count="pagination.count"
@@ -405,7 +443,7 @@ function fmtDate(val) {
     >
       <div class="flex justify-between items-center mb-4">
         <span class="text-sm text-muted-foreground">{{ spList.length }} producto(s) vinculado(s)</span>
-        <button v-if="canManageSuppliers" class="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-primary-foreground bg-primary rounded-md hover:bg-primary/90" @click="openCreateSP">
+        <button v-if="canCreateSuppliers" class="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-primary-foreground bg-primary rounded-md hover:bg-primary/90" @click="openCreateSP">
           <Plus :size="14" /> Vincular producto
         </button>
       </div>
@@ -438,10 +476,10 @@ function fmtDate(val) {
                 <button class="p-1.5 rounded-md hover:bg-muted" title="Historial de precios" @click="openPrices(sp)">
                   <History :size="14" />
                 </button>
-                <button v-if="canManageSuppliers" class="p-1.5 rounded-md hover:bg-muted" title="Editar" @click="openEditSP(sp)">
+                <button v-if="canEditSuppliers" class="p-1.5 rounded-md hover:bg-muted" title="Editar" @click="openEditSP(sp)">
                   <Pencil :size="14" />
                 </button>
-                <button v-if="canManageSuppliers" class="p-1.5 rounded-md hover:bg-muted text-destructive hover:bg-destructive/10" title="Desvincular" @click="deleteSP(sp)">
+                <button v-if="canDeleteSuppliers" class="p-1.5 rounded-md hover:bg-muted text-destructive hover:bg-destructive/10" title="Desvincular" @click="deleteSP(sp)">
                   <XCircle :size="14" />
                 </button>
               </div>
@@ -509,7 +547,7 @@ function fmtDate(val) {
     >
       <div class="flex justify-between items-center mb-4">
         <span class="text-sm text-muted-foreground">{{ priceList.length }} registro(s)</span>
-        <button v-if="canManageSuppliers" class="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-primary-foreground bg-primary rounded-md hover:bg-primary/90" @click="openCreatePrice">
+        <button v-if="canCreateSuppliers" class="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-primary-foreground bg-primary rounded-md hover:bg-primary/90" @click="openCreatePrice">
           <Plus :size="14" /> Registrar precio
         </button>
       </div>
@@ -529,10 +567,10 @@ function fmtDate(val) {
             <td class="p-2">{{ p.source ?? '—' }}</td>
             <td class="p-2">
               <div class="flex gap-1">
-                <button v-if="canManageSuppliers" class="p-1.5 rounded-md hover:bg-muted" title="Editar" @click="openEditPrice(p)">
+                <button v-if="canEditSuppliers" class="p-1.5 rounded-md hover:bg-muted" title="Editar" @click="openEditPrice(p)">
                   <Pencil :size="13" />
                 </button>
-                <button v-if="canManageSuppliers" class="p-1.5 rounded-md hover:bg-muted text-destructive hover:bg-destructive/10" title="Eliminar" @click="deletePrice(p)">
+                <button v-if="canDeleteSuppliers" class="p-1.5 rounded-md hover:bg-muted text-destructive hover:bg-destructive/10" title="Eliminar" @click="deletePrice(p)">
                   <XCircle :size="13" />
                 </button>
               </div>
