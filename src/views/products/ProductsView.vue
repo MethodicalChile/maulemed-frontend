@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, onUnmounted, ref } from 'vue'
-import { ImagePlus, Pencil, Plus, Search, Trash2, X, History, Building2 } from 'lucide-vue-next'
+import { ImagePlus, Pencil, Plus, Search, Trash2, X, History, Building2, MoreVertical } from 'lucide-vue-next'
 import { productsApi } from '@/api/products.api'
 import { suppliersApi } from '@/api/suppliers.api'
 import { optionsApi } from '@/api/options.api'
@@ -25,7 +25,15 @@ import SupplierChipsCell from '@/components/common/SupplierChipsCell.vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
-const { canManageCatalogs } = usePermissions()
+const { canCreateProducts, canEditProducts, canDeleteProducts } = usePermissions()
+
+const showActionModal = ref(false)
+const activeActionRow = ref(null)
+
+function openActions(row) {
+  activeActionRow.value = row
+  showActionModal.value = true
+}
 
 // ─── Tabla principal ───────────────────────────────────────────────────────────
 const columns = [
@@ -260,14 +268,15 @@ function openCreate() {
 
 async function openEdit(row) {
   editingItem.value = row
-  fill({
+    fill({
     name: row.name, sku: row.sku ?? '', barcode: row.barcode ?? '', internal_code: row.internal_code ?? '',
     description: row.description ?? '', category: row.category, unit: row.unit,
     requires_lot: row.requires_lot, requires_expiration_date: row.requires_expiration_date,
     is_medication: row.is_medication, is_controlled: row.is_controlled, is_active: row.is_active,
-    quality_rating: row.quality_rating ?? 0,
+    quality_rating: Number(row.quality_rating ?? 0),
     image: null, remove_image: false,
   })
+
   releaseLocalImageUrl()
   originalImageUrl.value = row.image_url ?? ''
   imagePreview.value = originalImageUrl.value
@@ -409,7 +418,7 @@ function fmtQty(val) {
 <template>
   <section class="p-6 space-y-6">
     <PageHeader title="Productos" subtitle="Catálogo de productos del sistema">
-      <button v-if="canManageCatalogs" class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold bg-primary text-primary-foreground rounded-xl shadow-md hover:bg-primary/90 transition-all hover:scale-105" @click="openCreate">
+      <button v-if="canCreateProducts" class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold bg-primary text-primary-foreground rounded-xl shadow-md hover:bg-primary/90 transition-all hover:scale-105" @click="openCreate">
         <Plus :size="18" /> Nuevo producto
       </button>
     </PageHeader>
@@ -474,18 +483,33 @@ function fmtQty(val) {
           </span>
         </template>
         <template #quality_rating="{ row }">
-          <StarRating :model-value="row.quality_rating ?? 0" :readonly="true" />
+          <StarRating :model-value="Number(row.quality_rating ?? 0)" :readonly="true" />
         </template>
         <template #actions="{ row }">
-          <div class="flex justify-end gap-1">
-            <button class="p-2 hover:bg-muted rounded-lg text-muted-foreground hover:text-primary transition-colors" title="Ver historial de precios" @click="openPriceHistory(row)"><History :size="16" /></button>
-            <button class="p-2 hover:bg-muted rounded-lg text-muted-foreground hover:text-primary transition-colors" title="Configurar stock por sucursal" @click="openBPModal(row)"><Building2 :size="16" /></button>
-            <button v-if="canManageCatalogs" class="p-2 hover:bg-muted rounded-lg text-muted-foreground hover:text-primary transition-colors" title="Editar" @click="openEdit(row)"><Pencil :size="16" /></button>
-            <button v-if="canManageCatalogs" class="p-2 hover:bg-muted rounded-lg text-muted-foreground hover:text-destructive transition-colors" title="Eliminar" @click="deleteTarget = row"><Trash2 :size="16" /></button>
-          </div>
+          <button class="grid place-items-center w-9 h-9 border border-border rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-all" @click="openActions(row)">
+            <MoreVertical :size="16" />
+          </button>
         </template>
       </AppTable>
     </div>
+
+    <!-- Modal acciones -->
+    <AppModal v-if="showActionModal && activeActionRow" title="Acciones" size="sm" @close="showActionModal = false">
+      <div class="grid gap-2">
+        <button class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium" @click="openPriceHistory(activeActionRow); showActionModal = false">
+          <History :size="16" /> Historial de precios
+        </button>
+        <button class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium" @click="openBPModal(activeActionRow); showActionModal = false">
+          <Building2 :size="16" /> Configurar stock
+        </button>
+        <button v-if="canEditProducts" class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium" @click="openEdit(activeActionRow); showActionModal = false">
+          <Pencil :size="16" /> Editar
+        </button>
+        <button v-if="canDeleteProducts" class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium text-destructive" @click="deleteTarget = activeActionRow; showActionModal = false">
+          <Trash2 :size="16" /> Eliminar
+        </button>
+      </div>
+    </AppModal>
 
     <AppPagination
       :count="pagination.count"

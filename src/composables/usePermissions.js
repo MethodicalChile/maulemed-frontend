@@ -27,9 +27,9 @@ export function usePermissions() {
     // Catálogos
     canManageCatalogs:  computed(() => can('can_manage_catalogs')),
     canViewCatalogs:    computed(() => canAny('can_view_catalogs', 'can_manage_catalogs')),
-    canCreateProducts:  computed(() => canAny('can_create_products', 'can_manage_catalogs')),
-    canEditProducts:    computed(() => canAny('can_edit_products',   'can_manage_catalogs')),
-    canDeleteProducts:  computed(() => canAny('can_delete_products', 'can_manage_catalogs')),
+    canCreateProducts:  computed(() => canAny('can_create_products', 'can_manage_products')),
+    canEditProducts:    computed(() => canAny('can_edit_products',   'can_manage_products')),
+    canDeleteProducts:  computed(() => canAny('can_delete_products', 'can_manage_products')),
 
     // Proveedores
     canManageSuppliers:  computed(() => can('can_manage_suppliers')),
