@@ -1,9 +1,10 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { Pencil, Plus, Ruler, Search, Tags, Trash2 } from 'lucide-vue-next'
 import { productsApi } from '@/api/products.api'
 import { useList } from '@/composables/useList'
 import { usePermissions } from '@/composables/usePermissions'
+import { useRefresh } from '@/composables/useRefresh'
 import AppAlert from '@/components/common/AppAlert.vue'
 import AppModal from '@/components/common/AppModal.vue'
 import AppTable from '@/components/common/AppTable.vue'
@@ -24,7 +25,17 @@ const catList  = useList(productsApi.listCategories,  { ordering: 'name' })
 const unitList = useList(productsApi.listUnits,        { ordering: 'code' })
 const currentList = computed(() => activeTab.value === 'categories' ? catList : unitList)
 
-onMounted(() => { catList.load(); unitList.load() })
+const { setRefreshFunction, clearRefreshFunction } = useRefresh()
+function refresh() {
+  catList.load()
+  unitList.load()
+}
+onMounted(() => {
+  setRefreshFunction(refresh)
+  catList.load()
+  unitList.load()
+})
+onUnmounted(clearRefreshFunction)
 
 function switchTab(tab) {
   activeTab.value = tab

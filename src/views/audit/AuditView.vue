@@ -1,12 +1,13 @@
 <script setup>
-import { ref, onMounted } from 'vue'
-import { Search } from 'lucide-vue-next'
+import { onMounted, onUnmounted } from 'vue'
 import { auditApi } from '@/api/audit.api'
 import { useList } from '@/composables/useList'
+import { useRefresh } from '@/composables/useRefresh'
 import PageHeader from '@/components/common/PageHeader.vue'
 import AppTable from '@/components/common/AppTable.vue'
 import AppPagination from '@/components/common/AppPagination.vue'
 import AppAlert from '@/components/common/AppAlert.vue'
+import AppTableFilterInput from '@/components/common/AppTableFilterInput.vue'
 
 const columns = [
   { key: 'user',        label: 'Usuario' },
@@ -18,32 +19,41 @@ const columns = [
 
 const auditList = useList(auditApi.listLogs)
 
-onMounted(auditList.load)
+const { setRefreshFunction, clearRefreshFunction } = useRefresh()
+onMounted(() => {
+  setRefreshFunction(auditList.load)
+  auditList.load()
+})
+onUnmounted(clearRefreshFunction)
+
+function fmtDate(val) {
+  if (!val) return '—'
+  const date = new Date(val)
+  return isNaN(date.getTime()) ? '—' : date.toLocaleString('es-CL')
+}
 </script>
 
 <template>
-  <section class="space-y-6">
+  <section class="page">
     <PageHeader title="Auditoría" subtitle="Registro de actividades del sistema" />
     
-    <div class="flex items-center gap-4 mb-4">
-      <div class="relative w-full md:w-64">
-        <Search :size="16" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <AppInput
-          type="text"
-          placeholder="Buscar acción o usuario..."
-          :model-value="auditList.params.search"
-          @update:model-value="auditList.setParam('search', $event)"
-          class="pl-10"
-        />
-      </div>
-    </div>
-
     <AppAlert v-if="auditList.error.value" type="error" :message="auditList.error.value" />
 
     <AppTable :columns="columns" :rows="auditList.items.value" :loading="auditList.loading.value">
+      <template #filter-user>
+        <AppTableFilterInput placeholder="Buscar..." :model-value="auditList.params.user" @update:model-value="auditList.setParam('user', $event)" />
+      </template>
+      <template #filter-action>
+        <AppTableFilterInput placeholder="Buscar..." :model-value="auditList.params.action" @update:model-value="auditList.setParam('action', $event)" />
+      </template>
+      
       <template #user="{ row }">{{ row.user_detail?.username ?? '—' }}</template>
-      <template #timestamp="{ row }">{{ new Date(row.timestamp).toLocaleString('es-CL') }}</template>
-      <template #details="{ row }"><pre class="text-xs bg-muted p-2 rounded max-h-20 overflow-auto">{{ JSON.stringify(row.details, null, 2) }}</pre></template>
+      <template #timestamp="{ row }">{{ fmtDate(row.timestamp) }}</template>
+      <template #details="{ row }">
+        <div class="text-xs text-muted-foreground truncate max-w-xs" :title="JSON.stringify(row.details)">
+          {{ JSON.stringify(row.details) }}
+        </div>
+      </template>
     </AppTable>
     
     <AppPagination

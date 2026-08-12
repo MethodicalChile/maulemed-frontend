@@ -1,5 +1,6 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
+import { useRefresh } from '@/composables/useRefresh'
 import { Plus, Trash2, FileText, Search, ExternalLink, Upload } from 'lucide-vue-next'
 import { documentsApi } from '@/api/documents.api'
 import { useList } from '@/composables/useList'
@@ -43,6 +44,11 @@ const columns = [
 
 const docList    = useList(documentsApi.listDocuments)
 const deleteError = ref('')
+const { setRefreshFunction, clearRefreshFunction } = useRefresh()
+
+async function loadAll() {
+  await docList.load()
+}
 
 // ── Upload modal ──────────────────────────────────────────────────────────────
 const showModal   = ref(false)
@@ -58,7 +64,12 @@ const uploadMeta = ref({
   notes:         '',
 })
 
-onMounted(() => docList.load())
+onMounted(async () => {
+  await loadAll()
+  setRefreshFunction(loadAll)
+})
+
+onUnmounted(clearRefreshFunction)
 
 function openModal() {
   selectedFile.value  = null

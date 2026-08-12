@@ -12,6 +12,7 @@ function buildProductFormData(data) {
   const formData = new FormData()
 
   Object.entries(data).forEach(([key, value]) => {
+    console.log(`Appending ${key}:`, value);
     if (value === undefined || value === null) {
       return
     }

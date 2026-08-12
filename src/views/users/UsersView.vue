@@ -1,9 +1,10 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { Plus, Pencil, KeyRound, UserCheck, UserX, Search, X, Shield } from 'lucide-vue-next'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { Plus, Pencil, KeyRound, UserCheck, UserX, Search, X, Shield, Trash2, MoreVertical } from 'lucide-vue-next'
 import { usersApi } from '@/api/users.api'
 import { optionsApi } from '@/api/options.api'
 import { useList } from '@/composables/useList'
+import { useRefresh } from '@/composables/useRefresh'
 import PageHeader from '@/components/common/PageHeader.vue'
 import AppTable from '@/components/common/AppTable.vue'
 import AppModal from '@/components/common/AppModal.vue'
@@ -34,6 +35,19 @@ const columns = [
 // ── Lista paginada server-side ────────────────────────────────────────────────
 const userList = useList(usersApi.listUsers)
 
+// ── Refresh ──────────────────────────────────────────────────────────────────
+const { setRefreshFunction, clearRefreshFunction } = useRefresh()
+function refresh() {
+  userList.load()
+  loadOptions()
+}
+onMounted(() => {
+  setRefreshFunction(refresh)
+  userList.load()
+  loadOptions()
+})
+onUnmounted(clearRefreshFunction)
+
 // Alias para compatibilidad con las partes del template que usan `loadUsers`
 function loadUsers() { userList.load() }
 
@@ -62,9 +76,15 @@ async function loadOptions() {
   }
 }
 
-onMounted(() => { userList.load(); loadOptions() })
-
 // ── Modal crear/editar usuario ────────────────────────────────────────────────
+const showActionModal = ref(false)
+const activeActionRow = ref(null)
+
+function openActions(row) {
+  activeActionRow.value = row
+  showActionModal.value = true
+}
+
 const showUserModal  = ref(false)
 const editingUser    = ref(null)
 const userFormError  = ref('')
@@ -163,14 +183,26 @@ async function handleUserSubmit() {
 
     // ── Sincronizar roles ──
     const roleOps = formRoleRows.value.map(r => {
+      // 1. Si está marcado como borrado y tiene UUID, eliminar
       if (r._deleted && r.uuid)
         return usersApi.deleteAssignment(r.uuid).catch(() => null)
+      
+      const data = {
+        user: userId,
+        role: r.role,
+        organization: r.organization || null,
+        legal_entity: r.legal_entity || null,
+        branch: r.branch || null,
+      }
+
+      // 2. Si ya existe (tiene UUID) y NO está borrado, ACTUALIZAR
+      if (!r._deleted && r.uuid)
+        return usersApi.updateAssignment(r.uuid, data).catch(() => null)
+      
+      // 3. Si NO existe y NO está borrado, CREAR
       if (!r._deleted && !r.uuid && r.role)
-        return usersApi.createAssignment({
-          user: userId, role: r.role,
-          organization: r.organization || null,
-          branch: r.branch || null,
-        }).catch(() => null)
+        return usersApi.createAssignment(data).catch(() => null)
+        
       return Promise.resolve()
     })
     await Promise.all(roleOps)
@@ -230,14 +262,23 @@ const rolesError      = ref('')
 const roleRows        = ref([])     // asignaciones actuales del usuario
 
 // Fila nueva pendiente de guardar
-const newRoleRow = ref({ role: '', organization: '', branch: '' })
+const newRoleRow = ref({ uuid: null, role: '', organization: '', branch: '' })
 
 async function openRoles(user) {
   rolesTarget.value = user
   rolesError.value  = ''
   roleRows.value    = [...(user.role_assignments ?? [])]
-  newRoleRow.value  = { role: '', organization: '', branch: '' }
+  newRoleRow.value  = { uuid: null, role: '', organization: '', branch: '' }
   showRolesModal.value = true
+}
+
+function editRoleAssignment(assignment) {
+  newRoleRow.value = {
+    uuid: assignment.uuid,
+    role: assignment.role,
+    organization: assignment.organization ?? '',
+    branch: assignment.branch ?? ''
+  }
 }
 
 async function addRoleAssignment() {
@@ -245,13 +286,19 @@ async function addRoleAssignment() {
   rolesLoading.value = true
   rolesError.value   = ''
   try {
-    await usersApi.createAssignment({
+    const data = {
       user:         rolesTarget.value.id,
       role:         newRoleRow.value.role,
       organization: newRoleRow.value.organization || null,
+      legal_entity: newRoleRow.value.legal_entity || null,
       branch:       newRoleRow.value.branch       || null,
-    })
-    newRoleRow.value = { role: '', organization: '', branch: '' }
+    }
+    if (newRoleRow.value.uuid) {
+      await usersApi.updateAssignment(newRoleRow.value.uuid, data)
+    } else {
+      await usersApi.createAssignment(data)
+    }
+    newRoleRow.value = { uuid: null, role: '', organization: '', branch: '' }
     // Recargar usuario para reflejar cambio
     const res = await usersApi.getUser(rolesTarget.value.id)
     const updated = res.data?.data ?? res.data
@@ -262,7 +309,7 @@ async function addRoleAssignment() {
     rolesTarget.value = updated
   } catch (err) {
     const d = err.response?.data
-    rolesError.value = d?.message ?? d?.detail ?? 'Error al asignar rol.'
+    rolesError.value = d?.message ?? d?.detail ?? 'Error al guardar rol.'
   } finally {
     rolesLoading.value = false
   }
@@ -298,6 +345,21 @@ async function confirmToggle() {
     await loadUsers()
   } finally {
     toggleLoading.value = false
+  }
+}
+
+// ── Eliminar usuario ──────────────────────────────────────────────────────────
+const deleteTarget  = ref(null)
+const deleteLoading = ref(false)
+
+async function confirmDelete() {
+  deleteLoading.value = true
+  try {
+    await usersApi.deleteUser(deleteTarget.value.id)
+    deleteTarget.value = null
+    await loadUsers()
+  } finally {
+    deleteLoading.value = false
   }
 }
 </script>
@@ -358,24 +420,13 @@ async function confirmToggle() {
       </template>
 
       <template #actions="{ row }">
-        <div class="flex gap-1">
-          <button class="p-2 rounded-md hover:bg-muted" title="Editar datos" @click="openEdit(row)">
-            <Pencil :size="14" />
-          </button>
-          <button class="p-2 rounded-md hover:bg-muted" title="Gestionar roles" @click="openRoles(row)">
-            <Shield :size="14" />
-          </button>
-          <button class="p-2 rounded-md hover:bg-muted" title="Cambiar contraseña" @click="openPassword(row)">
-            <KeyRound :size="14" />
-          </button>
-          <button
-            :class="['p-2 rounded-md hover:bg-muted', row.is_active ? 'text-destructive hover:bg-destructive/10' : '']"
-            :title="row.is_active ? 'Desactivar' : 'Activar'"
-            @click="toggleTarget = row"
-          >
-            <component :is="row.is_active ? UserX : UserCheck" :size="14" />
-          </button>
-        </div>
+        <button
+          class="grid place-items-center w-9 h-9 border border-border rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
+          title="Acciones"
+          @click="openActions(row)"
+        >
+          <MoreVertical :size="16" />
+        </button>
       </template>
     </AppTable>
 
@@ -387,8 +438,38 @@ async function confirmToggle() {
     />
   </section>
 
-  <!-- ── Modal crear / editar usuario ── -->
-  <AppModal
+    <!-- ── Actions Modal ── -->
+    <AppModal
+      v-if="showActionModal"
+      :title="`Acciones - ${activeActionRow?.full_name || activeActionRow?.username || 'Usuario'}`"
+      size="sm"
+      @close="showActionModal = false"
+    >
+      <div class="grid gap-2">
+        <button class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium" @click="openEdit(activeActionRow); showActionModal = false">
+          <Pencil :size="16" /> Editar
+        </button>
+        <button class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium" @click="openRoles(activeActionRow); showActionModal = false">
+          <Shield :size="16" /> Roles
+        </button>
+        <button class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium" @click="openPassword(activeActionRow); showActionModal = false">
+          <KeyRound :size="16" /> Contraseña
+        </button>
+        <button
+          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+          @click="toggleTarget = activeActionRow; showActionModal = false"
+        >
+          <component :is="activeActionRow.is_active ? UserX : UserCheck" :size="16" /> {{ activeActionRow.is_active ? 'Desactivar' : 'Activar' }}
+        </button>
+        <button class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium text-destructive" @click="deleteTarget = activeActionRow; showActionModal = false">
+          <Trash2 :size="16" /> Eliminar
+        </button>
+      </div>
+    </AppModal>
+
+    <!-- ── Modal crear / editar usuario ── -->
+    <AppModal
+
     v-if="showUserModal"
     :title="editingUser ? `Editar: ${editingUser.username}` : 'Nuevo usuario'"
     size="xl"
@@ -538,9 +619,14 @@ async function confirmToggle() {
             {{ [a.organization_detail?.name, a.branch_detail?.name].filter(Boolean).join(' · ') }}
           </span>
         </div>
-        <button class="p-2 rounded-md hover:bg-muted text-destructive hover:bg-destructive/10" title="Quitar rol" :disabled="rolesLoading" @click="removeRoleAssignment(a)">
-          <X :size="16" />
-        </button>
+        <div class="flex items-center">
+          <button class="p-2 rounded-md hover:bg-muted text-primary" title="Editar rol" :disabled="rolesLoading" @click="editRoleAssignment(a)">
+            <Pencil :size="16" />
+          </button>
+          <button class="p-2 rounded-md hover:bg-muted text-destructive hover:bg-destructive/10" title="Quitar rol" :disabled="rolesLoading" @click="removeRoleAssignment(a)">
+            <X :size="16" />
+          </button>
+        </div>
       </div>
     </div>
 
@@ -587,5 +673,17 @@ async function confirmToggle() {
     :loading="toggleLoading"
     @confirm="confirmToggle"
     @cancel="toggleTarget = null"
+  />
+
+  <!-- ── Confirmar eliminar ── -->
+  <ConfirmDialog
+    v-if="deleteTarget"
+    title="Eliminar usuario"
+    :message="`¿Estás seguro de eliminar permanentemente al usuario &quot;${deleteTarget.username}&quot;?`"
+    confirm-label="Eliminar"
+    confirm-class="bg-destructive hover:bg-destructive/90"
+    :loading="deleteLoading"
+    @confirm="confirmDelete"
+    @cancel="deleteTarget = null"
   />
 </template>

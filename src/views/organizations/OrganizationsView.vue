@@ -1,10 +1,11 @@
 <script setup>
-import { ref, onMounted } from 'vue'
-import { Plus, Pencil, Trash2, Search } from 'lucide-vue-next'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { Plus, Pencil, Trash2, Search, MoreVertical } from 'lucide-vue-next'
 import { organizationsApi } from '@/api/organizations.api'
 import { useList } from '@/composables/useList'
 import { useForm } from '@/composables/useForm'
 import { usePermissions } from '@/composables/usePermissions'
+import { useRefresh } from '@/composables/useRefresh'
 import PageHeader from '@/components/common/PageHeader.vue'
 import AppTable from '@/components/common/AppTable.vue'
 import AppModal from '@/components/common/AppModal.vue'
@@ -16,15 +17,14 @@ import AppInput from '@/components/common/AppInput.vue'
 import AppSelect from '@/components/common/AppSelect.vue'
 import AppTextarea from '@/components/common/AppTextarea.vue'
 
-const { canManageOrganizations } = usePermissions()
+const permissions = usePermissions()
 
 const TABS = ['Organizaciones', 'Sucursales', 'Entidades Legales', 'Centros de Costo']
 const activeTab = ref('Organizaciones')
 
-// ─── Opciones compartidas para selectores ─────────────────────────────────────
-const orgOptions         = ref([])   // para selector de Sucursales y Entidades
-const legalEntityOptions = ref([])   // para selector de Sucursales y C. de Costo
-const branchOptions      = ref([])   // para selector de Centros de Costo
+const orgOptions         = ref([])   
+const legalEntityOptions = ref([])   
+const branchOptions      = ref([])   
 
 async function loadOptions() {
   const [orgs, les, brs] = await Promise.allSettled([
@@ -40,6 +40,30 @@ async function loadOptions() {
   orgOptions.value         = extract(orgs)
   legalEntityOptions.value = extract(les)
   branchOptions.value      = extract(brs)
+}
+
+const canEditRow = () => {
+  return permissions.can('can_edit_organizations')
+}
+
+const canDeleteRow = () => {
+  return permissions.can('can_delete_organizations')
+}
+
+const showActionModal = ref(false)
+const activeActionRow = ref(null)
+
+const canEdit = computed(() => {
+  return activeActionRow.value ? canEditRow(activeActionRow.value) : false
+})
+
+const canDelete = computed(() => {
+  return activeActionRow.value ? canDeleteRow(activeActionRow.value) : false
+})
+
+function openActions(row, type) {
+  activeActionRow.value = { ...row, type }
+  showActionModal.value = true
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -214,23 +238,29 @@ async function confirmDeleteCc() {
   finally { deleteCcLoading.value = false }
 }
 
-// ─── Mount ────────────────────────────────────────────────────────────────────
-onMounted(() => {
+async function loadData() {
   orgList.load()
   branchList.load()
   leList.load()
   ccList.load()
   loadOptions()
+}
+
+const { setRefreshFunction, clearRefreshFunction } = useRefresh()
+onMounted(() => {
+  setRefreshFunction(loadData)
+  loadData()
 })
+onUnmounted(clearRefreshFunction)
 </script>
 
 <template>
   <section class="page">
     <PageHeader title="Organización" subtitle="Gestión de organizaciones, sucursales, entidades legales y centros de costo">
-      <button v-if="canManageOrganizations && activeTab === 'Organizaciones'"   class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-md hover:bg-primary/90" @click="openCreateOrg">    <Plus :size="16" /> Nueva organización   </button>
-      <button v-if="canManageOrganizations && activeTab === 'Sucursales'"       class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-md hover:bg-primary/90" @click="openCreateBranch"> <Plus :size="16" /> Nueva sucursal       </button>
-      <button v-if="canManageOrganizations && activeTab === 'Entidades Legales'" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-md hover:bg-primary/90" @click="openCreateLe">    <Plus :size="16" /> Nueva entidad legal  </button>
-      <button v-if="canManageOrganizations && activeTab === 'Centros de Costo'" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-md hover:bg-primary/90" @click="openCreateCc">     <Plus :size="16" /> Nuevo centro de costo</button>
+      <button v-if="permissions.can('can_create_organizations') && activeTab === 'Organizaciones'" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-md hover:bg-primary/90" @click="openCreateOrg">    <Plus :size="16" /> Nueva organización   </button>
+      <button v-if="permissions.can('can_create_organizations') && activeTab === 'Sucursales'" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-md hover:bg-primary/90" @click="openCreateBranch"> <Plus :size="16" /> Nueva sucursal       </button>
+      <button v-if="permissions.can('can_create_organizations') && activeTab === 'Entidades Legales'" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-md hover:bg-primary/90" @click="openCreateLe">    <Plus :size="16" /> Nueva entidad legal  </button>
+      <button v-if="permissions.can('can_create_organizations') && activeTab === 'Centros de Costo'" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-md hover:bg-primary/90" @click="openCreateCc">     <Plus :size="16" /> Nuevo centro de costo</button>
     </PageHeader>
 
     <div class="flex border-b border-border mb-6">
@@ -241,7 +271,13 @@ onMounted(() => {
 
     <!-- ══ ORGANIZACIONES ══ -->
     <template v-if="activeTab === 'Organizaciones'">
-      <div class="flex gap-4 mb-4">
+      <div v-if="permissions.can('can_create_organizations')" class="flex gap-4 mb-4">
+        <div class="relative flex-1">
+          <Search :size="18" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <AppInput type="text" placeholder="Buscar organización..." :model-value="orgList.params.search" @update:model-value="orgList.setParam('search', $event)" class="pl-10" />
+        </div>
+      </div>
+      <div v-else class="mb-4">
         <div class="relative flex-1">
           <Search :size="18" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <AppInput type="text" placeholder="Buscar organización..." :model-value="orgList.params.search" @update:model-value="orgList.setParam('search', $event)" class="pl-10" />
@@ -253,10 +289,9 @@ onMounted(() => {
           <span :class="['px-2 py-0.5 rounded-full text-[10px] font-bold', row.is_active ? 'bg-green-100 text-green-700' : 'bg-muted text-muted-foreground']">{{ row.is_active ? 'Activo' : 'Inactivo' }}</span>
         </template>
         <template #actions="{ row }">
-          <div class="flex items-center gap-1">
-            <button v-if="canManageOrganizations" class="p-1 hover:bg-muted rounded" @click="openEditOrg(row)"><Pencil :size="15" /></button>
-            <button v-if="canManageOrganizations" class="p-1 hover:bg-muted rounded text-destructive" @click="deleteOrgTarget = row"><Trash2 :size="15" /></button>
-          </div>
+          <button v-if="canEditRow(row) || canDeleteRow(row)" class="grid place-items-center w-9 h-9 border border-border rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-all" @click="openActions(row, 'org')">
+            <MoreVertical :size="16" />
+          </button>
         </template>
       </AppTable>
       <AppPagination :count="orgList.pagination.count" :page="orgList.pagination.page" :page-size="orgList.pagination.pageSize" @change="orgList.setPage" />
@@ -264,8 +299,14 @@ onMounted(() => {
 
     <!-- ══ SUCURSALES ══ -->
     <template v-if="activeTab === 'Sucursales'">
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-xl bg-card border border-border shadow-sm mb-4">
+      <div v-if="permissions.can('can_create_organizations')" class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-xl bg-card border border-border shadow-sm mb-4">
         <div class="relative col-span-2">
+          <Search :size="18" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <AppInput type="text" placeholder="Buscar sucursal..." :model-value="branchList.params.search" @update:model-value="branchList.setParam('search', $event)" class="pl-10" />
+        </div>
+      </div>
+      <div v-else class="mb-4">
+        <div class="relative">
           <Search :size="18" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <AppInput type="text" placeholder="Buscar sucursal..." :model-value="branchList.params.search" @update:model-value="branchList.setParam('search', $event)" class="pl-10" />
         </div>
@@ -278,10 +319,9 @@ onMounted(() => {
           <span :class="['badge', row.is_active ? 'badge--green' : 'badge--neutral']">{{ row.is_active ? 'Activo' : 'Inactivo' }}</span>
         </template>
         <template #actions="{ row }">
-          <div class="row-actions">
-            <button v-if="canManageOrganizations" class="icon-btn" @click="openEditBranch(row)"><Pencil :size="15" /></button>
-            <button v-if="canManageOrganizations" class="icon-btn icon-btn--danger" @click="deleteBranchTarget = row"><Trash2 :size="15" /></button>
-          </div>
+          <button v-if="canEditRow(row) || canDeleteRow(row)" class="grid place-items-center w-9 h-9 border border-border rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-all" @click="openActions(row, 'branch')">
+            <MoreVertical :size="16" />
+          </button>
         </template>
       </AppTable>
       <AppPagination :count="branchList.pagination.count" :page="branchList.pagination.page" :page-size="branchList.pagination.pageSize" @change="branchList.setPage" />
@@ -289,8 +329,14 @@ onMounted(() => {
 
     <!-- ══ ENTIDADES LEGALES ══ -->
     <template v-if="activeTab === 'Entidades Legales'">
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-xl bg-card border border-border shadow-sm mb-4">
+      <div v-if="permissions.can('can_create_organizations')" class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-xl bg-card border border-border shadow-sm mb-4">
         <div class="relative col-span-2">
+          <Search :size="18" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <AppInput type="text" placeholder="Buscar entidad legal..." :model-value="leList.params.search" @update:model-value="leList.setParam('search', $event)" class="pl-10" />
+        </div>
+      </div>
+      <div v-else class="mb-4">
+        <div class="relative">
           <Search :size="18" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <AppInput type="text" placeholder="Buscar entidad legal..." :model-value="leList.params.search" @update:model-value="leList.setParam('search', $event)" class="pl-10" />
         </div>
@@ -302,19 +348,23 @@ onMounted(() => {
           <span :class="['badge', row.is_active ? 'badge--green' : 'badge--neutral']">{{ row.is_active ? 'Activo' : 'Inactivo' }}</span>
         </template>
         <template #actions="{ row }">
-          <div class="row-actions">
-            <button v-if="canManageOrganizations" class="icon-btn" @click="openEditLe(row)"><Pencil :size="15" /></button>
-            <button v-if="canManageOrganizations" class="icon-btn icon-btn--danger" @click="deleteLe = row"><Trash2 :size="15" /></button>
-          </div>
+          <button v-if="canEditRow(row) || canDeleteRow(row)" class="grid place-items-center w-9 h-9 border border-border rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-all" @click="openActions(row, 'le')">
+            <MoreVertical :size="16" />
+          </button>
         </template>
       </AppTable>
       <AppPagination :count="leList.pagination.count" :page="leList.pagination.page" :page-size="leList.pagination.pageSize" @change="leList.setPage" />
     </template>
 
-    <!-- ══ CENTROS DE COSTO ══ -->
     <template v-if="activeTab === 'Centros de Costo'">
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-xl bg-card border border-border shadow-sm mb-4">
+      <div v-if="permissions.can('can_create_organizations')" class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-xl bg-card border border-border shadow-sm mb-4">
         <div class="relative col-span-2">
+          <Search :size="18" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <AppInput type="text" placeholder="Buscar centro de costo..." :model-value="ccList.params.search" @update:model-value="ccList.setParam('search', $event)" class="pl-10" />
+        </div>
+      </div>
+      <div v-else class="mb-4">
+        <div class="relative">
           <Search :size="18" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <AppInput type="text" placeholder="Buscar centro de costo..." :model-value="ccList.params.search" @update:model-value="ccList.setParam('search', $event)" class="pl-10" />
         </div>
@@ -327,16 +377,14 @@ onMounted(() => {
           <span :class="['badge', row.is_active ? 'badge--green' : 'badge--neutral']">{{ row.is_active ? 'Activo' : 'Inactivo' }}</span>
         </template>
         <template #actions="{ row }">
-          <div class="row-actions">
-            <button v-if="canManageOrganizations" class="icon-btn" @click="openEditCc(row)"><Pencil :size="15" /></button>
-            <button v-if="canManageOrganizations" class="icon-btn icon-btn--danger" @click="deleteCc = row"><Trash2 :size="15" /></button>
-          </div>
+          <button v-if="canEditRow(row) || canDeleteRow(row)" class="grid place-items-center w-9 h-9 border border-border rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-all" @click="openActions(row, 'cc')">
+            <MoreVertical :size="16" />
+          </button>
         </template>
       </AppTable>
       <AppPagination :count="ccList.pagination.count" :page="ccList.pagination.page" :page-size="ccList.pagination.pageSize" @change="ccList.setPage" />
     </template>
 
-    <!-- ══ MODAL: Organización ══ -->
     <AppModal v-if="showOrgForm" :title="editingOrg ? 'Editar organización' : 'Nueva organización'" size="md" @close="showOrgForm = false">
       <form class="grid grid-cols-1 gap-4" @submit.prevent="handleOrgSubmit">
         <AppAlert v-if="orgError" type="error" :message="orgError" />
@@ -365,13 +413,13 @@ onMounted(() => {
         <FormField label="Organización" required>
           <AppSelect v-model="branchForm.organization" required>
             <option value="">Seleccione...</option>
-            <option v-for="o in orgOptions" :key="o.uuid" :value="o.uuid">{{ o.name }}</option>
+            <option v-for="o in orgOptions" :key="o.id" :value="o.id">{{ o.name }}</option>
           </AppSelect>
         </FormField>
         <FormField label="Entidad legal">
           <AppSelect v-model="branchForm.legal_entity">
             <option value="">Sin entidad legal</option>
-            <option v-for="le in legalEntityOptions" :key="le.uuid" :value="le.uuid">{{ le.name }}</option>
+            <option v-for="le in legalEntityOptions" :key="le.id" :value="le.id">{{ le.name }}</option>
           </AppSelect>
         </FormField>
         <FormField label="Ciudad">
@@ -410,7 +458,7 @@ onMounted(() => {
         <FormField label="Organización" required>
           <AppSelect v-model="leForm.organization" required>
             <option value="">Seleccione...</option>
-            <option v-for="o in orgOptions" :key="o.uuid" :value="o.uuid">{{ o.name }}</option>
+            <option v-for="o in orgOptions" :key="o.id" :value="o.id">{{ o.name }}</option>
           </AppSelect>
         </FormField>
         <FormField label="Giro comercial">
@@ -440,13 +488,13 @@ onMounted(() => {
         <FormField label="Entidad legal" required>
           <AppSelect v-model="ccForm.legal_entity" required>
             <option value="">Seleccione...</option>
-            <option v-for="le in legalEntityOptions" :key="le.uuid" :value="le.uuid">{{ le.name }}</option>
+            <option v-for="le in legalEntityOptions" :key="le.id" :value="le.id">{{ le.name }}</option>
           </AppSelect>
         </FormField>
         <FormField label="Sucursal">
           <AppSelect v-model="ccForm.branch">
             <option value="">Sin sucursal</option>
-            <option v-for="b in branchOptions" :key="b.uuid" :value="b.uuid">{{ b.name }}</option>
+            <option v-for="b in branchOptions" :key="b.id" :value="b.id">{{ b.name }}</option>
           </AppSelect>
         </FormField>
         <FormField label="Descripción">
@@ -460,10 +508,28 @@ onMounted(() => {
       </form>
     </AppModal>
 
+    <!-- ── Modal acciones ── -->
+    <AppModal
+      v-if="showActionModal"
+      :title="`Acciones`"
+      size="sm"
+      @close="showActionModal = false"
+    >
+      <div class="grid gap-2">
+        <button v-if="canEdit" class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium" @click="activeActionRow.type === 'org' ? openEditOrg(activeActionRow) : activeActionRow.type === 'branch' ? openEditBranch(activeActionRow) : activeActionRow.type === 'le' ? openEditLe(activeActionRow) : openEditCc(activeActionRow); showActionModal = false">
+          <Pencil :size="16" /> Editar
+        </button>
+        <button v-if="canDelete" class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium text-destructive" @click="activeActionRow.type === 'org' ? deleteOrgTarget = activeActionRow : activeActionRow.type === 'branch' ? deleteBranchTarget = activeActionRow : activeActionRow.type === 'le' ? deleteLe = activeActionRow : deleteCc = activeActionRow; showActionModal = false">
+          <Trash2 :size="16" /> Eliminar
+        </button>
+      </div>
+    </AppModal>
+
     <!-- ══ CONFIRMACIONES ══ -->
     <ConfirmDialog v-if="deleteOrgTarget"    title="Eliminar organización"    :message="`¿Eliminar &quot;${deleteOrgTarget.name}&quot;?`"     confirm-label="Eliminar" :loading="deleteOrgLoading"    @confirm="confirmDeleteOrg"    @cancel="deleteOrgTarget = null" />
     <ConfirmDialog v-if="deleteBranchTarget" title="Eliminar sucursal"        :message="`¿Eliminar &quot;${deleteBranchTarget.name}&quot;?`"  confirm-label="Eliminar" :loading="deleteBranchLoading" @confirm="confirmDeleteBranch" @cancel="deleteBranchTarget = null" />
     <ConfirmDialog v-if="deleteLe"           title="Eliminar entidad legal"   :message="`¿Eliminar &quot;${deleteLe.name}&quot;?`"            confirm-label="Eliminar" :loading="deleteLeLoading"     @confirm="confirmDeleteLe"     @cancel="deleteLe = null" />
     <ConfirmDialog v-if="deleteCc"           title="Eliminar centro de costo" :message="`¿Eliminar &quot;${deleteCc.name}&quot;?`"            confirm-label="Eliminar" :loading="deleteCcLoading"     @confirm="confirmDeleteCc"     @cancel="deleteCc = null" />
+
   </section>
 </template>

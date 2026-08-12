@@ -1,5 +1,6 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { useRefresh } from '@/composables/useRefresh'
 import { Plus, Pencil, Eye, Search, Send, CheckCircle, XCircle, Truck, AlertTriangle } from 'lucide-vue-next'
 import { purchasingApi } from '@/api/purchasing.api'
 import { optionsApi } from '@/api/options.api'
@@ -24,6 +25,17 @@ const {
   canManagePurchaseOrders,
   canReceivePurchase,
 } = usePermissions()
+
+const { setRefreshFunction, clearRefreshFunction } = useRefresh()
+
+async function loadAll() {
+  await Promise.all([
+    srList.load(),
+    poList.load(),
+    receiptList.load(),
+    claimList.load()
+  ])
+}
 
 const tabs = ['Solicitudes', 'Órdenes de Compra', 'Recepciones', 'Reclamos']
 const activeTab = ref('Solicitudes')
@@ -272,10 +284,8 @@ function claimTypeLabel(val) {
 
 // ─── MOUNT ───────────────────────────────────────────────────────────────────
 onMounted(async () => {
-  srList.load()
-  poList.load()
-  receiptList.load()
-  claimList.load()
+  await loadAll()
+  setRefreshFunction(loadAll)
 
   const [brRes, supRes, whRes, prRes, poRes] = await Promise.allSettled([
     optionsApi.getBranches(),
@@ -295,6 +305,8 @@ onMounted(async () => {
   products.value      = extract(prRes)
   purchaseOrders.value = extract(poRes)
 })
+
+onUnmounted(clearRefreshFunction)
 
 // ─── HANDLERS SOLICITUDES ────────────────────────────────────────────────────
 function openCreateSR() {

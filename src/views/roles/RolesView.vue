@@ -1,9 +1,11 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { Plus, Pencil, Trash2, Check, X, Search, Users, ShieldCheck } from 'lucide-vue-next'
 import { usersApi } from '@/api/users.api'
+import { useAuthStore } from '@/stores/auth.store'
 import { useList } from '@/composables/useList'
 import { useForm } from '@/composables/useForm'
+import { useRefresh } from '@/composables/useRefresh'
 import PageHeader from '@/components/common/PageHeader.vue'
 import AppTable from '@/components/common/AppTable.vue'
 import AppAlert from '@/components/common/AppAlert.vue'
@@ -173,6 +175,8 @@ function colLabel(code) {
   return SHORT[code] ?? code.slice(0, 7)
 }
 
+const authStore = useAuthStore()
+
 // ─── Toggle permiso desde la matriz ──────────────────────────────────────────
 const savingPerm = ref(null)  // 'roleCode:permKey' mientras se guarda
 
@@ -194,7 +198,7 @@ async function togglePerm(permKey, roleCode) {
       granted:        !wasGranted,
     })
 
-    // Actualizar la matriz localmente sin refetch completo
+    // Actualizar la matriz localmente
     for (const mod of matrixModules.value) {
       const perm = mod.permissions.find(p => p.key === permKey)
       if (perm) {
@@ -206,6 +210,10 @@ async function togglePerm(permKey, roleCode) {
         break
       }
     }
+    
+    // Si el usuario actual está editando su propio rol, refrescar sus permisos
+    await authStore.fetchMe()
+
   } catch (err) {
     matrixError.value = err.response?.data?.message ?? 'Error al actualizar el permiso.'
   } finally {
@@ -229,7 +237,17 @@ function autoGenerateCode() {
 
 // ── Mount ─────────────────────────────────────────────────────────────────────
 // v2 - botones habilitados
-onMounted(() => { loadRoles(); loadMatrix() })
+const { setRefreshFunction, clearRefreshFunction } = useRefresh()
+function refresh() {
+  loadRoles()
+  loadMatrix()
+}
+onMounted(() => {
+  setRefreshFunction(refresh)
+  loadRoles()
+  loadMatrix()
+})
+onUnmounted(clearRefreshFunction)
 </script>
 
 <template>
@@ -367,15 +385,15 @@ onMounted(() => { loadRoles(); loadMatrix() })
           </thead>
           <tbody class="divide-y">
             <template v-for="mod in matrixModules" :key="mod.key">
-              <tr class="bg-muted/30">
-                <td :colspan="visibleCodes.length + 1" class="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              <tr class="bg-primary/5 border-t border-border">
+                <td :colspan="visibleCodes.length + 1" class="px-4 py-3 text-xs font-bold uppercase tracking-widest text-primary">
                   {{ mod.module }}
                 </td>
               </tr>
               <tr
                 v-for="perm in mod.permissions"
                 :key="perm.key"
-                class="hover:bg-muted/20"
+                class="hover:bg-muted/30 even:bg-muted/5 transition-colors"
               >
                 <td class="px-3 py-2 text-sm">{{ perm.action }}</td>
                 <td

@@ -12,9 +12,10 @@ export const usersApi = {
   // Editar datos básicos (sin contraseña)
   updateUser:  (id, data) => http.patch(`/users/${id}/`, data),
 
-  // Desactivar / activar
+  // Desactivar / activar / eliminar
   deactivateUser: (id)    => http.delete(`/users/${id}/`),
   activateUser:   (id)    => http.post(`/users/${id}/activate/`),
+  deleteUser:     (id)    => http.delete(`/users/${id}/`),
 
   // Cambiar contraseña (admin sobre otro usuario)
   setPassword: (id, data) => http.post(`/users/${id}/set_password/`, data),
@@ -26,6 +27,7 @@ export const usersApi = {
   // Roles asignados
   listAssignments:  (params) => http.get('/user-role-assignments/', { params }),
   createAssignment: (data)   => http.post('/user-role-assignments/', data),
+  updateAssignment: (uuid, data) => http.patch(`/user-role-assignments/${uuid}/`, data),
   deleteAssignment: (uuid)   => http.delete(`/user-role-assignments/${uuid}/`),
 
   // Roles disponibles en el sistema

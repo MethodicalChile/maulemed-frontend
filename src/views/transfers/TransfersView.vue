@@ -1,11 +1,12 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { Plus, Eye, Search, CheckCircle, Send, Truck, XCircle, Lock } from 'lucide-vue-next'
 import { transfersApi } from '@/api/transfers.api'
 import { optionsApi } from '@/api/options.api'
 import { useList } from '@/composables/useList'
 import { useForm } from '@/composables/useForm'
 import { usePermissions } from '@/composables/usePermissions'
+import { useRefresh } from '@/composables/useRefresh'
 import PageHeader from '@/components/common/PageHeader.vue'
 import AppTable from '@/components/common/AppTable.vue'
 import AppModal from '@/components/common/AppModal.vue'
@@ -55,7 +56,7 @@ const branches   = ref([])
 const warehouses = ref([])
 const products   = ref([])
 
-onMounted(async () => {
+async function loadData() {
   load()
   const [brRes, whRes, prRes] = await Promise.allSettled([
     optionsApi.getBranches(),
@@ -70,7 +71,14 @@ onMounted(async () => {
   branches.value   = ext(brRes)
   warehouses.value = ext(whRes)
   products.value   = ext(prRes)
+}
+
+const { setRefreshFunction, clearRefreshFunction } = useRefresh()
+onMounted(() => {
+  setRefreshFunction(loadData)
+  loadData()
 })
+onUnmounted(clearRefreshFunction)
 
 // ── Crear traspaso (cabecera) ─────────────────────────────────────────────────
 const showCreateModal = ref(false)
@@ -209,8 +217,8 @@ function fmtQty(val) {
 <template>
   <section class="page">
     <PageHeader title="Traspasos" subtitle="Traspasos y préstamos de stock entre sucursales">
-      <button v-if="canManageTransfers" class="btn btn--primary" @click="openCreate">
-        <Plus :size="16" /> Nuevo traspaso
+      <button v-if="canManageTransfers" class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold bg-primary text-primary-foreground rounded-xl shadow-md hover:bg-primary/90 transition-all hover:scale-105" @click="openCreate">
+        <Plus :size="18" /> Nuevo traspaso
       </button>
     </PageHeader>
 
@@ -268,44 +276,44 @@ function fmtQty(val) {
 
     <!-- ══ MODAL: Nuevo traspaso ══ -->
     <AppModal v-if="showCreateModal" title="Nuevo traspaso" size="md" @close="showCreateModal = false">
-      <form class="form-grid" @submit.prevent="handleCreate">
+      <form class="grid grid-cols-1 md:grid-cols-2 gap-4" @submit.prevent="handleCreate">
         <AppAlert v-if="formError" type="error" :message="formError" />
-        <FormField label="Sucursal origen" required>
-          <select v-model="form.origin_branch" required>
+        <FormField label="Sucursal origen" required class="col-span-full">
+          <select v-model="form.origin_branch" required class="w-full px-3 py-2 border rounded-md text-sm">
             <option value="">Seleccione...</option>
             <option v-for="b in branches" :key="b.uuid" :value="b.uuid">{{ b.name }}</option>
           </select>
         </FormField>
-        <FormField label="Sucursal destino" required>
-          <select v-model="form.destination_branch" required>
+        <FormField label="Sucursal destino" required class="col-span-full">
+          <select v-model="form.destination_branch" required class="w-full px-3 py-2 border rounded-md text-sm">
             <option value="">Seleccione...</option>
             <option v-for="b in branches" :key="b.uuid" :value="b.uuid">{{ b.name }}</option>
           </select>
         </FormField>
         <FormField label="Bodega origen">
-          <select v-model="form.origin_warehouse">
+          <select v-model="form.origin_warehouse" class="w-full px-3 py-2 border rounded-md text-sm">
             <option value="">Sin bodega específica</option>
             <option v-for="w in warehouses" :key="w.uuid" :value="w.uuid">{{ w.name }}</option>
           </select>
         </FormField>
         <FormField label="Bodega destino">
-          <select v-model="form.destination_warehouse">
+          <select v-model="form.destination_warehouse" class="w-full px-3 py-2 border rounded-md text-sm">
             <option value="">Sin bodega específica</option>
             <option v-for="w in warehouses" :key="w.uuid" :value="w.uuid">{{ w.name }}</option>
           </select>
         </FormField>
-        <FormField label="Tipo">
-          <select v-model="form.transfer_type">
+        <FormField label="Tipo" class="col-span-full">
+          <select v-model="form.transfer_type" class="w-full px-3 py-2 border rounded-md text-sm">
             <option value="TRASPASO">Traspaso</option>
             <option value="PRESTAMO">Préstamo</option>
           </select>
         </FormField>
-        <FormField label="Motivo" class="full-width">
-          <textarea v-model="form.reason" rows="2" />
+        <FormField label="Motivo" class="col-span-full">
+          <textarea v-model="form.reason" rows="2" class="w-full px-3 py-2 border rounded-md text-sm" />
         </FormField>
-        <div class="form-actions full-width">
-          <button type="button" class="btn btn--ghost" @click="showCreateModal = false">Cancelar</button>
-          <button type="submit" class="btn btn--primary" :disabled="formLoading">
+        <div class="flex justify-end gap-3 mt-4 pt-4 border-t col-span-full">
+          <button type="button" class="px-4 py-2 text-sm font-medium border rounded-md hover:bg-muted" @click="showCreateModal = false">Cancelar</button>
+          <button type="submit" class="px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-md hover:bg-primary/90" :disabled="formLoading">
             {{ formLoading ? 'Creando...' : 'Crear traspaso' }}
           </button>
         </div>

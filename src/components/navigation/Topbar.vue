@@ -1,14 +1,15 @@
 <script setup>
-import { computed, onMounted, onUnmounted } from 'vue'
-import { Menu, Bell, ChevronRight } from 'lucide-vue-next'
-import { useRoute, useRouter } from 'vue-router'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { Menu, ChevronRight, RefreshCw } from 'lucide-vue-next'
+import { useRoute } from 'vue-router'
+import { useRefresh } from '@/composables/useRefresh'
 import UserMenu from './UserMenu.vue'
-import { useNotificationCount } from '@/composables/useNotificationCount'
+import NotificationDropdown from './NotificationDropdown.vue'
 
 const emit = defineEmits(['open-sidebar', 'open-settings'])
 
 const route  = useRoute()
-const router = useRouter()
+const { refreshFunction } = useRefresh()
 
 // Título de la página actual
 const pageTitle = computed(() => route.meta?.title ?? 'Panel de control')
@@ -20,17 +21,17 @@ const breadcrumb = computed(() => {
   return title
 })
 
-// ── Badge notificaciones ──────────────────────────────────────────────────────
-const { unreadCount, refresh: fetchUnreadCount } = useNotificationCount()
-let pollInterval = null
-
-function goToNotifications() { router.push('/notifications') }
-
-onMounted(() => {
-  fetchUnreadCount()
-  pollInterval = setInterval(fetchUnreadCount, 60_000)
-})
-onUnmounted(() => clearInterval(pollInterval))
+const loading = ref(false)
+async function triggerRefresh() {
+  if (refreshFunction.value) {
+    loading.value = true
+    try {
+      await refreshFunction.value()
+    } finally {
+      loading.value = false
+    }
+  }
+}
 </script>
 
 <template>
@@ -51,22 +52,20 @@ onUnmounted(() => clearInterval(pollInterval))
       </nav>
     </div>
 
-    <!-- Badge notificaciones -->
-    <button
-      class="relative p-2 hover:bg-pastel-blue/50 rounded-md text-primary"
-      aria-label="Notificaciones"
-      :title="unreadCount > 0 ? `${unreadCount} sin leer` : 'Notificaciones'"
-      @click="goToNotifications"
-    >
-      <Bell :size="19" />
-      <span v-if="unreadCount > 0" class="absolute top-1.5 right-1.5 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-white">
-        {{ unreadCount > 99 ? '99+' : unreadCount }}
-      </span>
-    </button>
+    <!-- Right side items -->
+    <div class="flex items-center gap-2">
+      <!-- Badge notificaciones -->
+      <NotificationDropdown />
+      
+      <!-- Botón de refresco global -->
+      <button v-if="refreshFunction" class="p-2 hover:bg-muted rounded-md transition-colors" @click="triggerRefresh" :disabled="loading" aria-label="Actualizar">
+        <RefreshCw :size="18" :class="{ 'animate-spin': loading }" class="text-muted-foreground" />
+      </button>
 
-    <UserMenu
-      @open-profile="emit('open-settings', 'profile')"
-      @open-password="emit('open-settings', 'password')"
-    />
+      <UserMenu
+        @open-profile="emit('open-settings', 'profile')"
+        @open-password="emit('open-settings', 'password')"
+      />
+    </div>
   </header>
 </template>

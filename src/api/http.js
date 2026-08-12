@@ -1,5 +1,6 @@
 // src/api/http.js
 import axios from 'axios'
+import emitter from '../utils/eventBus'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'
 
@@ -65,6 +66,11 @@ http.interceptors.response.use(
       } catch {
         return Promise.reject(error)
       }
+    }
+
+    // Emitir error global
+    if (error.response) {
+      emitter.emit('api:error', error.response)
     }
 
     return Promise.reject(error)

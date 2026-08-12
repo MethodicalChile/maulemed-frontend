@@ -1,8 +1,9 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, History, RefreshCw } from 'lucide-vue-next'
 import { Line } from 'vue-chartjs'
+import { useRefresh } from '@/composables/useRefresh'
 
 import {
   CategoryScale,
@@ -34,6 +35,7 @@ ChartJS.register(
 
 const route = useRoute()
 const router = useRouter()
+const { setRefreshFunction, clearRefreshFunction } = useRefresh()
 
 const loading = ref(false)
 const error = ref('')
@@ -161,7 +163,11 @@ const goBack = () => {
   router.push('/products')
 }
 
-onMounted(loadPriceHistory)
+onMounted(async () => {
+  await loadPriceHistory()
+  setRefreshFunction(loadPriceHistory)
+})
+onUnmounted(clearRefreshFunction)
 </script>
 
 <template>

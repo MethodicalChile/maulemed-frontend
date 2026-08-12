@@ -1,11 +1,12 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { Plus, Pencil, Trash2, Search } from 'lucide-vue-next'
 import { financeApi } from '@/api/finance.api'
 import { optionsApi } from '@/api/options.api'
 import { useList } from '@/composables/useList'
 import { useForm } from '@/composables/useForm'
 import { usePermissions } from '@/composables/usePermissions'
+import { useRefresh } from '@/composables/useRefresh'
 import PageHeader from '@/components/common/PageHeader.vue'
 import AppTable from '@/components/common/AppTable.vue'
 import AppModal from '@/components/common/AppModal.vue'
@@ -202,7 +203,7 @@ async function confirmDeleteBudget() {
 const suppliers = ref([])
 const invoices  = ref([])   // para el selector de facturas en el formulario de pago
 
-onMounted(async () => {
+async function loadData() {
   invoiceList.load()
   paymentList.load()
   budgetList.load()
@@ -218,7 +219,14 @@ onMounted(async () => {
     const d = invRes.value.data?.data ?? invRes.value.data
     invoices.value = Array.isArray(d) ? d : d.results ?? d
   }
+}
+
+const { setRefreshFunction, clearRefreshFunction } = useRefresh()
+onMounted(() => {
+  setRefreshFunction(loadData)
+  loadData()
 })
+onUnmounted(clearRefreshFunction)
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmt(val) {

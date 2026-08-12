@@ -1,11 +1,12 @@
 ﻿<script setup>
-import { onMounted, ref } from 'vue'
-import { DollarSign, History, Pencil, Plus, Search, Trash2, XCircle } from 'lucide-vue-next'
+import { onMounted, onUnmounted, ref } from 'vue'
+import { DollarSign, History, Pencil, Plus, Search, Trash2, XCircle, ImagePlus } from 'lucide-vue-next'
 import { suppliersApi } from '@/api/suppliers.api'
 import { optionsApi } from '@/api/options.api'
 import { useList } from '@/composables/useList'
 import { useForm } from '@/composables/useForm'
 import { usePermissions } from '@/composables/usePermissions'
+import { useRefresh } from '@/composables/useRefresh'
 import PageHeader from '@/components/common/PageHeader.vue'
 import AppTable from '@/components/common/AppTable.vue'
 import AppModal from '@/components/common/AppModal.vue'
@@ -34,11 +35,84 @@ const { items, loading, error, pagination, params, load, setPage, setParam } = u
   suppliersApi.listSuppliers
 )
 
+const { setRefreshFunction, clearRefreshFunction } = useRefresh()
+onMounted(() => {
+  setRefreshFunction(load)
+  load()
+})
+onUnmounted(clearRefreshFunction)
+
 // ── Crear / Editar proveedor ──────────────────────────────────────────────────
 const showForm    = ref(false)
 const editingItem = ref(null)
 const deleteTarget  = ref(null)
 const deleteLoading = ref(false)
+
+// Exponemos items para depuración en consola
+window.itemsForDebug = items
+
+const imageInput = ref(null)
+const imagePreview = ref('')
+const originalImageUrl = ref('')
+const imageError = ref('')
+let localImageUrl = null
+
+function releaseLocalImageUrl() {
+  if (!localImageUrl) return
+  URL.revokeObjectURL(localImageUrl)
+  localImageUrl = null
+}
+
+function resetImageState() {
+  releaseLocalImageUrl()
+  imagePreview.value = ''
+  originalImageUrl.value = ''
+  imageError.value = ''
+  form.image = null
+  form.remove_image = false
+  if (imageInput.value) imageInput.value.value = ''
+}
+
+function openImageSelector() { imageInput.value?.click() }
+
+function handleImageChange(event) {
+  imageError.value = ''
+  const file = event.target.files?.[0]
+  if (!file) return
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    imageError.value = 'Solo se permiten imágenes JPG, PNG o WEBP.'
+    event.target.value = ''
+    return
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    imageError.value = 'La imagen no puede superar los 5 MB.'
+    event.target.value = ''
+    return
+  }
+  releaseLocalImageUrl()
+  localImageUrl = URL.createObjectURL(file)
+  imagePreview.value = localImageUrl
+  form.image = file
+  form.remove_image = false
+}
+
+function removeSupplierImage() {
+  releaseLocalImageUrl()
+  imagePreview.value = ''
+  imageError.value = ''
+  form.image = null
+  form.remove_image = true
+  if (imageInput.value) imageInput.value.value = ''
+}
+
+function discardImageChange() {
+  releaseLocalImageUrl()
+  form.image = null
+  form.remove_image = false
+  imagePreview.value = originalImageUrl.value
+  imageError.value = ''
+  if (imageInput.value) imageInput.value.value = ''
+}
 
 const emptyForm = {
   name: '', rut: '', contact_name: '', email: '', phone: '',
@@ -65,8 +139,17 @@ function openEdit(row) {
   showForm.value = true
 }
 async function handleSubmit() {
-  await submit()
-  if (!formError.value) { showForm.value = false; load() }
+  formError.value = ''
+  try {
+    editingItem.value
+      ? await suppliersApi.updateSupplier(editingItem.value.uuid, form)
+      : await suppliersApi.createSupplier(form)
+    showForm.value = false
+    load()
+  } catch (err) {
+      console.error("Error al guardar:", err);
+      formError.value = err.response?.data?.message ?? err.response?.data?.detail ?? 'Error al guardar.'
+  }
 }
 async function confirmDelete() {
   deleteLoading.value = true
@@ -74,8 +157,8 @@ async function confirmDelete() {
   finally { deleteLoading.value = false }
 }
 
-// ── Productos y precios del proveedor ─────────────────────────────────────────
 const showProductsModal = ref(false)
+
 const viewingSupplier   = ref(null)
 const spList            = ref([])
 const spLoading         = ref(false)

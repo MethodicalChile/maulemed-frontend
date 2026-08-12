@@ -39,9 +39,6 @@ const TransfersView = () =>
 const FinanceView = () =>
   import('@/views/finance/FinanceView.vue')
 
-const NotificationsView = () =>
-  import('@/views/notifications/NotificationsView.vue')
-
 const AuditView = () =>
   import('@/views/audit/AuditView.vue')
 
@@ -177,14 +174,6 @@ const routes = [
         meta: {
           title: 'Finanzas',
           permission: 'can_manage_finance',
-        },
-      },
-      {
-        path: 'notifications',
-        name: 'notifications',
-        component: NotificationsView,
-        meta: {
-          title: 'Notificaciones',
         },
       },
       {

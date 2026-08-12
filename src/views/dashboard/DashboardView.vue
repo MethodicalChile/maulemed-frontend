@@ -1,16 +1,11 @@
 <template>
   <section class="space-y-6">
-    <!-- Cabecera con botón de actualizar -->
+    <!-- Cabecera -->
     <div class="flex items-center justify-between gap-3">
       <div>
         <h1 class="text-2xl font-bold text-foreground">Dashboard</h1>
         <p class="text-sm text-muted-foreground">Resumen operacional en tiempo real</p>
       </div>
-      <button class="inline-flex items-center gap-2 px-3 py-2 text-sm font-semibold rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50" :disabled="loading" @click="loadData">
-        <RefreshCw :size="15" :class="{ 'animate-spin': loading }" />
-        {{ loading ? 'Actualizando...' : 'Actualizar' }}
-      </button>
-
     </div>
 
     <AppAlert v-if="error" type="error" :message="error" />
@@ -241,18 +236,20 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import {
   Package, ShoppingCart, Truck, AlertTriangle, ClipboardList,
-  DollarSign, TrendingUp, Activity, RefreshCw,
+  DollarSign, TrendingUp, Activity,
 } from 'lucide-vue-next'
 import { dashboardApi } from '@/api/dashboard.api'
 import { useAutoRefresh } from '@/composables/useAutoRefresh'
+import { useRefresh } from '@/composables/useRefresh'
 import AppAlert from '@/components/common/AppAlert.vue'
 
 const loading = ref(true)
 const error   = ref(null)
 const data    = ref(null)
+const { setRefreshFunction, clearRefreshFunction } = useRefresh()
 
 async function loadData() {
   loading.value = true
@@ -267,7 +264,12 @@ async function loadData() {
   }
 }
 
-onMounted(loadData)
+onMounted(() => {
+  loadData()
+  setRefreshFunction(loadData)
+})
+
+onUnmounted(clearRefreshFunction)
 useAutoRefresh(loadData)
 
 function fmt(val, isCurrency = false) {

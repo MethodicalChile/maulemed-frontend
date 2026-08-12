@@ -6,15 +6,19 @@ export function usePermissions() {
   const authStore = useAuthStore()
 
   function can(key) {
-    if (authStore.user?.is_superuser) return true
-    return Boolean(authStore.permissions?.[key])
+    if (authStore.user?.is_superuser) {
+        return true
+    }
+    const hasPermission = Boolean(authStore.permissions?.[key])
+    return hasPermission
   }
 
   // Shortcut para verificar si tiene alguno de varios permisos (OR)
   function canAny(...keys) {
     if (authStore.user?.is_superuser) return true
     if (['ADMIN', 'GERENTE'].some(r => authStore.roleCodes?.includes(r))) return true
-    return keys.some(k => Boolean(authStore.permissions?.[k]))
+    const hasAny = keys.some(k => Boolean(authStore.permissions?.[k]))
+    return hasAny
   }
 
   const permissions = {
@@ -55,11 +59,29 @@ export function usePermissions() {
     canViewReports: computed(() => can('can_view_reports')),
 
     // Organización:
-    // - canViewOrganizations: ver los datos (lectura)
-    // - canManageOrganizations: crear/editar/eliminar
-    canViewOrganizations:   computed(() =>
-      canAny('can_view_organizations', 'can_manage_organizations')
-    ),
+    canViewOrganizations:    computed(() => canAny('can_view_organizations', 'can_manage_organizations')),
+    canCreateOrganizations:  computed(() => canAny('can_create_organizations', 'can_manage_organizations')),
+    canEditOrganizations:    computed(() => canAny('can_edit_organizations', 'can_manage_organizations')),
+    canDeleteOrganizations:  computed(() => canAny('can_delete_organizations', 'can_manage_organizations')),
+
+    // Sucursales
+    canViewBranches:    computed(() => canAny('can_view_branches', 'can_view_organizations')),
+    canCreateBranches:  computed(() => canAny('can_create_branches', 'can_create_organizations')),
+    canEditBranches:    computed(() => canAny('can_edit_branches', 'can_edit_organizations')),
+    canDeleteBranches:  computed(() => canAny('can_delete_branches', 'can_delete_organizations')),
+
+    // Entidades Legales
+    canViewLegalEntities:    computed(() => canAny('can_view_legal_entities', 'can_view_organizations')),
+    canCreateLegalEntities:  computed(() => canAny('can_create_legal_entities', 'can_create_organizations')),
+    canEditLegalEntities:    computed(() => canAny('can_edit_organizations', 'can_edit_organizations')),
+    canDeleteLegalEntities:  computed(() => canAny('can_delete_organizations', 'can_delete_organizations')),
+
+    // Centros de Costo
+    canViewCostCenters:    computed(() => canAny('can_view_cost_centers', 'can_view_organizations')),
+    canCreateCostCenters:  computed(() => canAny('can_create_cost_centers', 'can_create_organizations')),
+    canEditCostCenters:    computed(() => canAny('can_edit_cost_centers', 'can_edit_organizations')),
+    canDeleteCostCenters:  computed(() => canAny('can_delete_cost_center', 'can_delete_organizations')),
+
     canManageOrganizations: computed(() =>
       authStore.user?.is_superuser ||
       ['ADMIN', 'GERENTE'].some(r => authStore.roleCodes?.includes(r)) ||

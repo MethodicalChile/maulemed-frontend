@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, onUnmounted, ref } from 'vue'
 import { ImagePlus, Pencil, Plus, Search, Trash2, X, History, Building2 } from 'lucide-vue-next'
 import { productsApi } from '@/api/products.api'
 import { suppliersApi } from '@/api/suppliers.api'
@@ -7,6 +7,7 @@ import { optionsApi } from '@/api/options.api'
 import { useList } from '@/composables/useList'
 import { useForm } from '@/composables/useForm'
 import { usePermissions } from '@/composables/usePermissions'
+import { useRefresh } from '@/composables/useRefresh'
 import PageHeader from '@/components/common/PageHeader.vue'
 import AppTable from '@/components/common/AppTable.vue'
 import AppModal from '@/components/common/AppModal.vue'
@@ -16,6 +17,9 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import FormField from '@/components/common/FormField.vue'
 import AppInput from '@/components/common/AppInput.vue'
 import AppSelect from '@/components/common/AppSelect.vue'
+import AppTableFilterInput from '@/components/common/AppTableFilterInput.vue'
+import AppTableFilterSelect from '@/components/common/AppTableFilterSelect.vue'
+import StarRating from '@/components/common/StarRating.vue'
 import AppTextarea from '@/components/common/AppTextarea.vue'
 import SupplierChipsCell from '@/components/common/SupplierChipsCell.vue'
 import { useRouter } from 'vue-router'
@@ -31,6 +35,7 @@ const columns = [
   { key: 'category', label: 'Categoría' },
   { key: 'unit', label: 'Unidad' },
   { key: 'suppliers', label: 'Proveedores' },
+  { key: 'quality_rating', label: 'Calidad', width: '120px' },
   { key: 'is_active', label: 'Estado', width: '100px' },
   { key: 'actions', label: '', width: '132px' },
 ]
@@ -91,6 +96,7 @@ const emptyProductForm = {
   is_medication:            false,
   is_controlled:            false,
   is_active:                true,
+  quality_rating:           0,
   image: null,
   remove_image: false,
 }
@@ -259,6 +265,7 @@ async function openEdit(row) {
     description: row.description ?? '', category: row.category, unit: row.unit,
     requires_lot: row.requires_lot, requires_expiration_date: row.requires_expiration_date,
     is_medication: row.is_medication, is_controlled: row.is_controlled, is_active: row.is_active,
+    quality_rating: row.quality_rating ?? 0,
     image: null, remove_image: false,
   })
   releaseLocalImageUrl()
@@ -291,7 +298,7 @@ async function confirmDelete() {
   } finally { deleteLoading.value = false }
 }
 
-onMounted(async () => {
+async function loadData() {
   load()
   const [catRes, unitRes, supRes] = await Promise.allSettled([
     optionsApi.getProductCategories(), optionsApi.getUnits(), optionsApi.getSuppliers(),
@@ -308,7 +315,14 @@ onMounted(async () => {
     const d = supRes.value.data?.data ?? supRes.value.data
     allSuppliers.value = Array.isArray(d) ? d : d.results ?? d
   }
+}
+
+const { setRefreshFunction, clearRefreshFunction } = useRefresh()
+onMounted(() => {
+  setRefreshFunction(loadData)
+  loadData()
 })
+onUnmounted(clearRefreshFunction)
 
 onBeforeUnmount(releaseLocalImageUrl)
 
@@ -423,13 +437,13 @@ function fmtQty(val) {
     <div class="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
     <AppTable :columns="columns" :rows="items" :loading="loading">
       <template #filter-name>
-        <AppInput type="text" placeholder="Buscar..." :model-value="params.search" @update:model-value="setParam('search', $event)" />
+        <AppTableFilterInput placeholder="Buscar..." :model-value="params.search" @update:model-value="setParam('search', $event)" />
       </template>
       <template #filter-category>
-        <AppSelect :model-value="params.category" @update:model-value="setParam('category', $event)">
+        <AppTableFilterSelect :model-value="params.category" @update:model-value="setParam('category', $event)">
           <option value="">Todas</option>
           <option v-for="c in categories" :key="c.uuid" :value="c.uuid">{{ c.name }}</option>
-        </AppSelect>
+        </AppTableFilterSelect>
       </template>
       
       <template #image="{ row }">
@@ -458,6 +472,9 @@ function fmtQty(val) {
           <span :class="['px-3 py-1 rounded-full text-[11px] font-bold', row.is_active ? 'bg-green-100 text-green-700' : 'bg-muted text-muted-foreground']">
             {{ row.is_active ? 'Activo' : 'Inactivo' }}
           </span>
+        </template>
+        <template #quality_rating="{ row }">
+          <StarRating :model-value="row.quality_rating ?? 0" :readonly="true" />
         </template>
         <template #actions="{ row }">
           <div class="flex justify-end gap-1">
@@ -497,6 +514,9 @@ function fmtQty(val) {
             </div>
           </div>
           <FormField label="Nombre" required><AppInput v-model="form.name" type="text" required /></FormField>
+          <FormField label="Calidad" class="col-span-full">
+            <StarRating v-model="form.quality_rating" />
+          </FormField>
           <FormField label="SKU"><AppInput v-model="form.sku" type="text" /></FormField>
           <FormField label="Código interno"><AppInput v-model="form.internal_code" type="text" /></FormField>
           <FormField label="Código de barras"><AppInput v-model="form.barcode" type="text" /></FormField>

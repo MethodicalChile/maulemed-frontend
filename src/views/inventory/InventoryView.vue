@@ -1,11 +1,13 @@
 <script setup>
-import { ref, onMounted } from 'vue'
-import { Search, Plus, Pencil, Trash2 } from 'lucide-vue-next'
+import { ref, onMounted, onUnmounted } from 'vue'
+import { useRefresh } from '@/composables/useRefresh'
+import { Search, Plus, Pencil, Trash2, MoreVertical } from 'lucide-vue-next'
 import { inventoryApi } from '@/api/inventory.api'
 import { optionsApi } from '@/api/options.api'
 import { useList } from '@/composables/useList'
 import { useForm } from '@/composables/useForm'
 import { usePermissions } from '@/composables/usePermissions'
+import AppActionMenu from '@/components/common/AppActionMenu.vue'
 import PageHeader from '@/components/common/PageHeader.vue'
 import AppTable from '@/components/common/AppTable.vue'
 import AppModal from '@/components/common/AppModal.vue'
@@ -16,10 +18,31 @@ import FormField from '@/components/common/FormField.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import AppInput from '@/components/common/AppInput.vue'
 import AppSelect from '@/components/common/AppSelect.vue'
+import AppTableFilterInput from '@/components/common/AppTableFilterInput.vue'
+import AppTableFilterSelect from '@/components/common/AppTableFilterSelect.vue'
 import AppMultiSelect from '@/components/common/AppMultiSelect.vue'
 import AppTextarea from '@/components/common/AppTextarea.vue'
 
 const { canManageInventory } = usePermissions()
+const { setRefreshFunction, clearRefreshFunction } = useRefresh()
+
+// ── Actions Modal ─────────────────────────────────────────────────────────────
+const showActionModal = ref(false)
+const activeActionRow = ref(null)
+
+function openActions(row) {
+  activeActionRow.value = row
+  showActionModal.value = true
+}
+
+async function loadAll() {
+  await Promise.all([
+    stockList.load(),
+    lotList.load(),
+    movList.load(),
+    warehouseList.load()
+  ])
+}
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 const tabs = ['Stock', 'Lotes', 'Movimientos', 'Bodegas']
@@ -32,8 +55,37 @@ const stockColumns = [
   { key: 'quantity',          label: 'Cantidad' },
   { key: 'reserved_quantity', label: 'Reservado' },
   { key: 'available',         label: 'Disponible' },
+  { key: 'min_level',         label: 'Mínimo' },
+  { key: 'max_level',         label: 'Máximo' },
+  { key: 'actions',           label: '', width: '80px' },
 ]
 const stockList = useList(inventoryApi.listStocks)
+const showStockForm = ref(false)
+const editingStock = ref(null)
+const stockForm = ref({ min_level: 0, max_level: 0 })
+const stockFormLoading = ref(false)
+const stockFormError = ref('')
+
+function openEditStock(row) {
+  editingStock.value = row
+  stockForm.value = { min_level: row.min_level, max_level: row.max_level }
+  stockFormError.value = ''
+  showStockForm.value = true
+}
+
+async function handleStockSubmit() {
+  stockFormLoading.value = true
+  stockFormError.value = ''
+  try {
+    await inventoryApi.updateStock(editingStock.value.uuid, stockForm.value)
+    showStockForm.value = false
+    stockList.load()
+  } catch (e) {
+    stockFormError.value = e.response?.data?.message ?? 'Error al actualizar niveles'
+  } finally {
+    stockFormLoading.value = false
+  }
+}
 
 // ── Lotes ─────────────────────────────────────────────────────────────────────
 const lotColumns = [
@@ -65,16 +117,14 @@ async function handleLotSubmit() {
   lotList.load()
 }
 
-// ── Movimientos ───────────────────────────────────────────────────────────────
-const movColumns = [
-  { key: 'movement_type', label: 'Tipo' },
-  { key: 'product',       label: 'Producto' },
-  { key: 'quantity',      label: 'Cantidad' },
-  { key: 'origin',        label: 'Origen' },
-  { key: 'destination',   label: 'Destino' },
-  { key: 'created_at',    label: 'Fecha' },
-]
-const movList = useList(inventoryApi.listMovements)
+// ── Actions Modal ─────────────────────────────────────────────────────────────
+const showActionModal = ref(false)
+const activeActionRow = ref(null)
+
+function openActions(row) {
+  activeActionRow.value = row
+  showActionModal.value = true
+}
 
 const showMovForm  = ref(false)
 const allProducts  = ref([])
@@ -225,10 +275,8 @@ async function confirmDeleteWarehouse() {
 
 // ── Mount ─────────────────────────────────────────────────────────────────────
 onMounted(async () => {
-  stockList.load()
-  lotList.load()
-  movList.load()
-  warehouseList.load()
+  await loadAll()
+  setRefreshFunction(loadAll)
 
   const [whRes, prodRes, brRes] = await Promise.allSettled([
     optionsApi.getWarehouses(),
@@ -248,6 +296,8 @@ onMounted(async () => {
     allBranches.value = Array.isArray(d) ? d : d.results ?? d
   }
 })
+
+onUnmounted(clearRefreshFunction)
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmt(val) {
@@ -311,16 +361,16 @@ const needsDestination = (type) => ['AJUSTE_POSITIVO'].includes(type)
       <AppAlert v-if="stockList.error.value" type="error" :message="stockList.error.value" />
       <AppTable :columns="stockColumns" :rows="stockList.items.value" :loading="stockList.loading.value">
         <template #filter-product>
-           <AppInput type="text" placeholder="Buscar..." :model-value="stockList.params.search" @update:model-value="stockList.setParam('search', $event)" />
+           <AppTableFilterInput placeholder="Buscar..." :model-value="stockList.params.search" @update:model-value="stockList.setParam('search', $event)" />
         </template>
         <template #filter-warehouse>
-          <AppSelect
+          <AppTableFilterSelect
             :model-value="stockList.params.warehouse"
             @update:model-value="stockList.setParam('warehouse', $event)"
           >
             <option value="">Todas</option>
             <option v-for="w in warehouses" :key="w.uuid" :value="w.uuid">{{ w.name }}</option>
-          </AppSelect>
+          </AppTableFilterSelect>
         </template>
         
         <template #product="{ row }">{{ row.product_detail?.name ?? '—' }}</template>
@@ -331,6 +381,18 @@ const needsDestination = (type) => ['AJUSTE_POSITIVO'].includes(type)
           <span :class="parseFloat(row.available_quantity) <= 0 ? 'text-destructive font-semibold' : ''">
             {{ fmt(row.available_quantity) }}
           </span>
+        </template>
+        <template #min_level="{ row }">{{ fmt(row.min_level) }}</template>
+        <template #max_level="{ row }">{{ fmt(row.max_level) }}</template>
+        <template #actions="{ row }">
+          <button
+            v-if="canManageInventory"
+            class="grid place-items-center w-9 h-9 border border-border rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
+            title="Acciones"
+            @click="openActions(row)"
+          >
+            <MoreVertical :size="16" />
+          </button>
         </template>
       </AppTable>
       <AppPagination
@@ -350,16 +412,14 @@ const needsDestination = (type) => ['AJUSTE_POSITIVO'].includes(type)
         <template #expiration_date="{ row }">{{ fmtDate(row.expiration_date) }}</template>
         <template #status="{ row }"><StatusBadge :status="row.status" /></template>
         <template #actions="{ row }">
-          <div class="flex gap-1.5 flex-wrap">
-            <button
-              v-if="canManageInventory"
-              class="grid place-items-center w-9 h-9 border border-border rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
-              title="Cambiar estado"
-              @click="editingLot = row; lotFill({ status: row.status }); showLotForm = true"
-            >
-              <Pencil :size="15" />
-            </button>
-          </div>
+          <button
+            v-if="canManageInventory"
+            class="grid place-items-center w-9 h-9 border border-border rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
+            title="Acciones"
+            @click="openActions(row)"
+          >
+            <MoreVertical :size="16" />
+          </button>
         </template>
       </AppTable>
       <AppPagination
@@ -403,7 +463,7 @@ const needsDestination = (type) => ['AJUSTE_POSITIVO'].includes(type)
       <AppAlert v-if="warehouseList.error.value" type="error" :message="warehouseList.error.value" />
       <AppTable :columns="warehouseColumns" :rows="warehouseList.items.value" :loading="warehouseList.loading.value">
         <template #filter-name>
-          <AppInput type="text" placeholder="Buscar..." :model-value="warehouseList.params.search" @update:model-value="warehouseList.setParam('search', $event)" />
+          <AppTableFilterInput placeholder="Buscar..." :model-value="warehouseList.params.search" @update:model-value="warehouseList.setParam('search', $event)" />
         </template>
         <template #filter-is_active>
           <AppMultiSelect
@@ -423,14 +483,14 @@ const needsDestination = (type) => ['AJUSTE_POSITIVO'].includes(type)
           </span>
         </template>
         <template #actions="{ row }">
-          <div class="flex gap-1.5 justify-end">
-            <button v-if="canManageInventory" class="p-1 rounded hover:bg-muted" title="Editar" @click="openEditWarehouse(row)">
-              <Pencil :size="16" />
-            </button>
-            <button v-if="canManageInventory" class="p-1 rounded hover:bg-muted text-destructive hover:bg-destructive/10" title="Eliminar" @click="deleteWarehouse = row">
-              <Trash2 :size="16" />
-            </button>
-          </div>
+          <button
+            v-if="canManageInventory"
+            class="grid place-items-center w-9 h-9 border border-border rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
+            title="Acciones"
+            @click="openActions(row)"
+          >
+            <MoreVertical :size="16" />
+          </button>
         </template>
       </AppTable>
       <AppPagination
@@ -440,6 +500,67 @@ const needsDestination = (type) => ['AJUSTE_POSITIVO'].includes(type)
         @change="warehouseList.setPage"
       />
     </template>
+
+    <!-- ── Actions Modal ── -->
+    <AppModal
+      v-if="showActionModal"
+      :title="`Acciones - ${activeActionRow?.name ?? activeActionRow?.product_detail?.name ?? 'Registro'}`"
+      size="sm"
+      @close="showActionModal = false"
+    >
+      <div class="grid gap-2">
+        <!-- Stock Actions -->
+        <template v-if="activeTab === 'Stock'">
+          <button class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium" @click="openEditStock(activeActionRow); showActionModal = false">
+            <Pencil :size="16" /> Editar niveles
+          </button>
+        </template>
+        
+        <!-- Lots Actions -->
+        <template v-if="activeTab === 'Lotes'">
+           <button class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium" @click="editingLot = activeActionRow; lotFill({ status: activeActionRow.status }); showLotForm = true; showActionModal = false">
+            <Pencil :size="16" /> Cambiar estado
+          </button>
+        </template>
+
+        <!-- Warehouse Actions -->
+        <template v-if="activeTab === 'Bodegas'">
+          <button class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium" @click="openEditWarehouse(activeActionRow); showActionModal = false">
+            <Pencil :size="16" /> Editar
+          </button>
+          <button class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium text-destructive" @click="deleteWarehouse = activeActionRow; showActionModal = false">
+            <Trash2 :size="16" /> Eliminar
+          </button>
+        </template>
+      </div>
+    </AppModal>
+
+    <!-- ── Modal editar niveles stock ── -->
+    <AppModal
+      v-if="showStockForm"
+      title="Editar niveles de stock"
+      size="sm"
+      @close="showStockForm = false"
+    >
+      <form class="grid grid-cols-1 gap-4" @submit.prevent="handleStockSubmit">
+        <AppAlert v-if="stockFormError" type="error" :message="stockFormError" />
+        <FormField label="Producto" class="col-span-full">
+          <input :value="editingStock?.product_detail?.name ?? '—'" type="text" disabled class="w-full px-3 py-2 border rounded-md text-sm bg-muted/50 cursor-not-allowed" />
+        </FormField>
+        <FormField label="Mínimo">
+          <input v-model.number="stockForm.min_level" type="number" step="0.001" required class="w-full px-3 py-2 border rounded-md text-sm" />
+        </FormField>
+        <FormField label="Máximo">
+          <input v-model.number="stockForm.max_level" type="number" step="0.001" required class="w-full px-3 py-2 border rounded-md text-sm" />
+        </FormField>
+        <div class="flex justify-end gap-3 mt-4 pt-4 border-t col-span-full">
+          <button type="button" class="px-4 py-2 text-sm font-medium border rounded-md hover:bg-muted" @click="showStockForm = false">Cancelar</button>
+          <button type="submit" class="px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-md hover:bg-primary/90" :disabled="stockFormLoading">
+            {{ stockFormLoading ? 'Guardando...' : 'Guardar' }}
+          </button>
+        </div>
+      </form>
+    </AppModal>
 
     <!-- ── Modal editar estado lote ── -->
     <AppModal

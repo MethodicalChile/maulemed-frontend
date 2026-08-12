@@ -1,5 +1,6 @@
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { useRefresh } from '@/composables/useRefresh'
 import { Plus, Pencil, Trash2, Search, ToggleLeft, ToggleRight, Eye, X,
          Upload, ExternalLink, Copy, QrCode, MessageCircle, BarChart2, RefreshCw } from 'lucide-vue-next'
 import { evaluationsApi } from '@/api/evaluations.api'
@@ -21,6 +22,13 @@ import QRModal from '@/components/evaluations/QRModal.vue'
 import ResponsesModal from '@/components/evaluations/ResponsesModal.vue'
 
 const { canManageOrganizations } = usePermissions()
+const { setRefreshFunction, clearRefreshFunction } = useRefresh()
+
+async function loadAll() {
+  questionList.load()
+  resultList.load()
+  await loadMine()
+}
 const canWrite = canManageOrganizations   // admin / gerente
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
@@ -35,15 +43,16 @@ const activeTab = ref('questions')
 const allUsers = ref([])
 
 onMounted(async () => {
-  questionList.load()
-  resultList.load()
-  loadMine()
+  await loadAll()
+  setRefreshFunction(loadAll)
   const res = await usersApi.listUsers().catch(() => null)
   if (res) {
     const d = res.data?.data ?? res.data
     allUsers.value = Array.isArray(d) ? d : d.results ?? d
   }
 })
+
+onUnmounted(clearRefreshFunction)
 
 const QUESTION_COLS = [
   { key: 'title',          label: 'Título / descripción' },

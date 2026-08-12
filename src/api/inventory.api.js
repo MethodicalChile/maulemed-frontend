@@ -19,6 +19,7 @@ export const inventoryApi = {
   // Stocks
   listStocks: (params) => http.get(BASE.stocks + '/', { params }),
   getStock: (uuid) => http.get(`${BASE.stocks}/${uuid}/`),
+  updateStock: (uuid, data) => http.patch(`${BASE.stocks}/${uuid}/`, data),
 
   // Lots
   listLots: (params) => http.get(BASE.lots + '/', { params }),
