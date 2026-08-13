@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { Plus, Pencil, Trash2, Check, X, Search, Users, ShieldCheck } from 'lucide-vue-next'
+import { Plus, Pencil, Trash2, Check, X, Search, Users, ShieldCheck, ChevronDown, ChevronRight } from 'lucide-vue-next'
 import { usersApi } from '@/api/users.api'
 import { useAuthStore } from '@/stores/auth.store'
 import { useList } from '@/composables/useList'
@@ -22,6 +22,21 @@ const TABS = [
   { key: 'matrix', label: 'Matriz de permisos', icon: ShieldCheck },
 ]
 const activeTab = ref('list')
+
+// ── Actions / Minimized State ──────────────────────────────────────────────────
+const minimizedModules = ref([])
+
+function toggleModule(moduleKey) {
+  if (minimizedModules.value.includes(moduleKey)) {
+    minimizedModules.value = minimizedModules.value.filter(k => k !== moduleKey)
+  } else {
+    minimizedModules.value.push(moduleKey)
+  }
+}
+
+function isMinimized(moduleKey) {
+  return minimizedModules.value.includes(moduleKey)
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TAB 1 — LISTA DE ROLES
@@ -385,14 +400,16 @@ onUnmounted(clearRefreshFunction)
           </thead>
           <tbody class="divide-y">
             <template v-for="mod in matrixModules" :key="mod.key">
-              <tr class="bg-primary/5 border-t border-border">
-                <td :colspan="visibleCodes.length + 1" class="px-4 py-3 text-xs font-bold uppercase tracking-widest text-primary">
+              <tr class="bg-primary/5 border-t border-border cursor-pointer" @click="toggleModule(mod.key)">
+                <td :colspan="visibleCodes.length + 1" class="px-4 py-3 text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-2">
+                  <component :is="isMinimized(mod.key) ? ChevronRight : ChevronDown" :size="14" />
                   {{ mod.module }}
                 </td>
               </tr>
               <tr
                 v-for="perm in mod.permissions"
                 :key="perm.key"
+                v-show="!isMinimized(mod.key)"
                 class="hover:bg-muted/30 even:bg-muted/5 transition-colors"
               >
                 <td class="px-3 py-2 text-sm">{{ perm.action }}</td>
@@ -518,4 +535,3 @@ onUnmounted(clearRefreshFunction)
     />
   </section>
 </template>
-
