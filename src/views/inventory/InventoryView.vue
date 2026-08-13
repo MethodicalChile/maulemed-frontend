@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watchEffect } from 'vue'
 import { useRefresh } from '@/composables/useRefresh'
 import { Search, Plus, Pencil, Trash2, MoreVertical } from 'lucide-vue-next'
 import { inventoryApi } from '@/api/inventory.api'
@@ -7,7 +7,6 @@ import { optionsApi } from '@/api/options.api'
 import { useList } from '@/composables/useList'
 import { useForm } from '@/composables/useForm'
 import { usePermissions } from '@/composables/usePermissions'
-import AppActionMenu from '@/components/common/AppActionMenu.vue'
 import PageHeader from '@/components/common/PageHeader.vue'
 import AppTable from '@/components/common/AppTable.vue'
 import AppModal from '@/components/common/AppModal.vue'
@@ -23,7 +22,16 @@ import AppTableFilterSelect from '@/components/common/AppTableFilterSelect.vue'
 import AppMultiSelect from '@/components/common/AppMultiSelect.vue'
 import AppTextarea from '@/components/common/AppTextarea.vue'
 
-const { canManageInventory } = usePermissions()
+const {
+  canViewInventory,
+  canCreateInventory,
+  canEditInventory,
+  canDeleteInventory,
+  canViewWarehouses,
+  canCreateWarehouses,
+  canEditWarehouses,
+  canDeleteWarehouses,
+} = usePermissions()
 const { setRefreshFunction, clearRefreshFunction } = useRefresh()
 
 // ── Actions Modal ─────────────────────────────────────────────────────────────
@@ -35,6 +43,17 @@ function openActions(row) {
   showActionModal.value = true
 }
 
+// ── Movimientos ─────────────────────────────────────────────────────────────
+const movColumns = [
+  { key: 'movement_type', label: 'Tipo' },
+  { key: 'product',       label: 'Producto' },
+  { key: 'quantity',      label: 'Cantidad' },
+  { key: 'origin',        label: 'Origen' },
+  { key: 'destination',   label: 'Destino' },
+  { key: 'created_at',    label: 'Fecha' },
+]
+const movList = useList(inventoryApi.listMovements)
+
 async function loadAll() {
   await Promise.all([
     stockList.load(),
@@ -45,8 +64,18 @@ async function loadAll() {
 }
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
-const tabs = ['Stock', 'Lotes', 'Movimientos', 'Bodegas']
-const activeTab = ref('Stock')
+const tabs = computed(() => [
+  ...(canViewInventory.value ? ['Stock', 'Lotes', 'Movimientos'] : []),
+  ...(canViewWarehouses.value ? ['Bodegas'] : []),
+])
+
+const activeTab = ref(null)
+
+watchEffect(() => {
+  if (!tabs.value.includes(activeTab.value)) {
+    activeTab.value = tabs.value[0] ?? null
+  }
+})
 
 // ── Stock ─────────────────────────────────────────────────────────────────────
 const stockColumns = [
@@ -115,15 +144,6 @@ async function handleLotSubmit() {
   await lotSubmit()
   showLotForm.value = false
   lotList.load()
-}
-
-// ── Actions Modal ─────────────────────────────────────────────────────────────
-const showActionModal = ref(false)
-const activeActionRow = ref(null)
-
-function openActions(row) {
-  activeActionRow.value = row
-  showActionModal.value = true
 }
 
 const showMovForm  = ref(false)
@@ -216,22 +236,22 @@ const allBranches        = ref([])
 
 const warehouseForm = ref({
   name: '', branch: '', warehouse_type: 'GENERAL',
-  description: '', is_active: true,
+  is_active: true,
 })
 
 const WAREHOUSE_TYPES = [
   { value: 'GENERAL',    label: 'General' },
-  { value: 'FARMACIA',   label: 'Farmacia' },
-  { value: 'INSUMOS',    label: 'Insumos' },
-  { value: 'CRITICO',    label: 'Crítico' },
-  { value: 'TRANSITO',   label: 'En tránsito' },
-  { value: 'DEVOLUCION', label: 'Devolución' },
+  { value: 'INSUMOS_MEDICOS', label: 'Insumos médicos' },
+  { value: 'OFICINA',    label: 'Oficina' },
+  { value: 'ASEO',       label: 'Aseo' },
+  { value: 'MEDICAMENTOS', label: 'Medicamentos' },
+  { value: 'CARRO_PARO', label: 'Carro de paro' },
 ]
 
 function openCreateWarehouse() {
   editingWarehouse.value = null
   whFormError.value = ''
-  warehouseForm.value = { name: '', branch: '', warehouse_type: 'GENERAL', description: '', is_active: true }
+  warehouseForm.value = { name: '', branch: '', warehouse_type: 'GENERAL', is_active: true }
   showWarehouseForm.value = true
 }
 
@@ -241,7 +261,7 @@ function openEditWarehouse(row) {
   warehouseForm.value = {
     name: row.name, branch: row.branch,
     warehouse_type: row.warehouse_type ?? 'GENERAL',
-    description: row.description ?? '', is_active: row.is_active,
+    is_active: row.is_active,
   }
   showWarehouseForm.value = true
 }
@@ -330,14 +350,14 @@ const needsDestination = (type) => ['AJUSTE_POSITIVO'].includes(type)
   <section class="page">
     <PageHeader title="Inventario" subtitle="Stock, lotes y movimientos">
       <button
-        v-if="canManageInventory && activeTab === 'Movimientos'"
+        v-if="canCreateInventory && activeTab === 'Movimientos'"
         class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all"
         @click="movReset(); showMovForm = true"
       >
         <Plus :size="16" /> Registrar movimiento
       </button>
       <button
-        v-if="canManageInventory && activeTab === 'Bodegas'"
+        v-if="canCreateWarehouses && activeTab === 'Bodegas'"
         class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all"
         @click="openCreateWarehouse"
       >
@@ -386,7 +406,7 @@ const needsDestination = (type) => ['AJUSTE_POSITIVO'].includes(type)
         <template #max_level="{ row }">{{ fmt(row.max_level) }}</template>
         <template #actions="{ row }">
           <button
-            v-if="canManageInventory"
+            v-if="canEditInventory"
             class="grid place-items-center w-9 h-9 border border-border rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
             title="Acciones"
             @click="openActions(row)"
@@ -413,7 +433,7 @@ const needsDestination = (type) => ['AJUSTE_POSITIVO'].includes(type)
         <template #status="{ row }"><StatusBadge :status="row.status" /></template>
         <template #actions="{ row }">
           <button
-            v-if="canManageInventory"
+            v-if="canEditInventory"
             class="grid place-items-center w-9 h-9 border border-border rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
             title="Acciones"
             @click="openActions(row)"
@@ -432,9 +452,17 @@ const needsDestination = (type) => ['AJUSTE_POSITIVO'].includes(type)
 
     <!-- ── MOVIMIENTOS ── -->
     <template v-if="activeTab === 'Movimientos'">
-      <AppAlert v-if="movList.error.value" type="error" :message="movList.error.value" />
+      <AppAlert
+        v-if="movList.error.value"
+        type="error"
+        :message="movList.error.value"
+      />
 
-      <AppTable :columns="movColumns" :rows="movList.items.value" :loading="movList.loading.value">
+      <AppTable
+        :columns="movColumns"
+        :rows="movList.items.value"
+        :loading="movList.loading.value"
+      >
         <template #filter-movement_type>
           <AppMultiSelect
             :options="MOV_TYPES_WRITE"
@@ -443,13 +471,32 @@ const needsDestination = (type) => ['AJUSTE_POSITIVO'].includes(type)
           />
         </template>
 
-        <template #movement_type="{ row }"><StatusBadge :status="row.movement_type" /></template>
-        <template #product="{ row }">{{ row.product_detail?.name ?? '—' }}</template>
-        <template #quantity="{ row }">{{ fmt(row.quantity) }}</template>
-        <template #origin="{ row }">{{ row.warehouse_origin_detail?.name ?? '—' }}</template>
-        <template #destination="{ row }">{{ row.warehouse_destination_detail?.name ?? '—' }}</template>
-        <template #created_at="{ row }">{{ fmtDate(row.created_at) }}</template>
+        <template #movement_type="{ row }">
+          <StatusBadge :status="row.movement_type" />
+        </template>
+
+        <template #product="{ row }">
+          {{ row.product_detail?.name ?? '—' }}
+        </template>
+
+        <template #quantity="{ row }">
+          {{ fmt(row.quantity) }}
+        </template>
+
+        <template #origin="{ row }">
+          {{ row.warehouse_origin_detail?.name ?? '—' }}
+        </template>
+
+        <template #destination="{ row }">
+          {{ row.warehouse_destination_detail?.name ?? '—' }}
+        </template>
+
+        <template #created_at="{ row }">
+          {{ fmtDate(row.created_at) }}
+        </template>
+
       </AppTable>
+
       <AppPagination
         :count="movList.pagination.count"
         :page="movList.pagination.page"
@@ -484,7 +531,7 @@ const needsDestination = (type) => ['AJUSTE_POSITIVO'].includes(type)
         </template>
         <template #actions="{ row }">
           <button
-            v-if="canManageInventory"
+            v-if="canEditWarehouses || canDeleteWarehouses"
             class="grid place-items-center w-9 h-9 border border-border rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
             title="Acciones"
             @click="openActions(row)"
@@ -511,24 +558,41 @@ const needsDestination = (type) => ['AJUSTE_POSITIVO'].includes(type)
       <div class="grid gap-2">
         <!-- Stock Actions -->
         <template v-if="activeTab === 'Stock'">
-          <button class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium" @click="openEditStock(activeActionRow); showActionModal = false">
+          <button
+            v-if="canEditInventory"
+            class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+            @click="openEditStock(activeActionRow); showActionModal = false"
+          >
             <Pencil :size="16" /> Editar niveles
           </button>
         </template>
         
         <!-- Lots Actions -->
         <template v-if="activeTab === 'Lotes'">
-           <button class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium" @click="editingLot = activeActionRow; lotFill({ status: activeActionRow.status }); showLotForm = true; showActionModal = false">
+          <button
+            v-if="canEditInventory"
+            class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+            @click="editingLot = activeActionRow; lotFill({ status: activeActionRow.status }); showLotForm = true; showActionModal = false"
+          >
             <Pencil :size="16" /> Cambiar estado
           </button>
         </template>
 
         <!-- Warehouse Actions -->
         <template v-if="activeTab === 'Bodegas'">
-          <button class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium" @click="openEditWarehouse(activeActionRow); showActionModal = false">
+          <button
+            v-if="canEditWarehouses"
+            class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+            @click="openEditWarehouse(activeActionRow); showActionModal = false"
+          >
             <Pencil :size="16" /> Editar
           </button>
-          <button class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium text-destructive" @click="deleteWarehouse = activeActionRow; showActionModal = false">
+
+          <button
+            v-if="canDeleteWarehouses"
+            class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium text-destructive"
+            @click="deleteWarehouse = activeActionRow; showActionModal = false"
+          >
             <Trash2 :size="16" /> Eliminar
           </button>
         </template>
@@ -650,16 +714,13 @@ const needsDestination = (type) => ['AJUSTE_POSITIVO'].includes(type)
         <FormField label="Sucursal" required>
           <select v-model="warehouseForm.branch" required class="w-full px-3 py-2 border rounded-md text-sm">
             <option value="">Seleccionar sucursal</option>
-            <option v-for="b in allBranches" :key="b.uuid" :value="b.uuid">{{ b.name }}</option>
+            <option v-for="b in allBranches" :key="b.id" :value="b.id">{{ b.name }}</option>
           </select>
         </FormField>
         <FormField label="Tipo de bodega">
           <select v-model="warehouseForm.warehouse_type" class="w-full px-3 py-2 border rounded-md text-sm">
             <option v-for="t in WAREHOUSE_TYPES" :key="t.value" :value="t.value">{{ t.label }}</option>
           </select>
-        </FormField>
-        <FormField label="Descripción" class="col-span-full">
-          <textarea v-model="warehouseForm.description" rows="2" class="w-full px-3 py-2 border rounded-md text-sm" />
         </FormField>
         <div class="col-span-full">
           <label class="flex items-center gap-2 text-sm text-foreground">
@@ -687,4 +748,6 @@ const needsDestination = (type) => ['AJUSTE_POSITIVO'].includes(type)
     />
   </section>
 </template>
-
+",
+  "filePath": "/mnt/c/Users/jimmy.gallardo/Desktop/GITHUB/MULEMED/maulemed-frontend/src/views/inventory/InventoryView.vue"
+}

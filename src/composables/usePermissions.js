@@ -48,9 +48,39 @@ export function usePermissions() {
       can('can_delete_suppliers')
     ),
 
-    // Inventario
-    canViewInventory:   computed(() => canAny('can_view_inventory', 'can_manage_inventory')),
-    canManageInventory: computed(() => can('can_manage_inventory')),
+    // Inventario — Movimientos
+    canViewInventory: computed(() =>
+    can('can_view_inventory')
+    ),
+
+    canCreateInventory: computed(() =>
+    can('can_create_inventory')
+    ),
+
+    canEditInventory: computed(() =>
+    can('can_edit_inventory')
+    ),
+
+    canDeleteInventory: computed(() =>
+    can('can_delete_inventory')
+    ),
+
+    // Inventario — Bodegas
+    canViewWarehouses: computed(() =>
+    can('can_view_warehouses')
+    ),
+
+    canCreateWarehouses: computed(() =>
+    can('can_create_warehouses')
+    ),
+
+    canEditWarehouses: computed(() =>
+    can('can_edit_warehouses')
+    ),
+
+    canDeleteWarehouses: computed(() =>
+    can('can_delete_warehouses')
+    ),
 
     // Compras
     canCreateSupplyRequest:  computed(() => can('can_create_supply_request')),
