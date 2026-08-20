@@ -1,35 +1,35 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
-import { MoreVertical } from 'lucide-vue-next'
+import { ref, onMounted, onUnmounted } from "vue";
+import { MoreVertical } from "lucide-vue-next";
 
-const isOpen = ref(false)
-const menuRef = ref(null)
+const isOpen = ref(false);
+const menuRef = ref(null);
 
 const toggleMenu = () => {
-  isOpen.value = !isOpen.value
-}
+  isOpen.value = !isOpen.value;
+};
 
 const closeMenu = (event) => {
   if (menuRef.value && !menuRef.value.contains(event.target)) {
-    isOpen.value = false
+    isOpen.value = false;
   }
-}
+};
 
 onMounted(() => {
-  document.addEventListener('click', closeMenu)
-})
+  document.addEventListener("click", closeMenu);
+});
 
 onUnmounted(() => {
-  document.removeEventListener('click', closeMenu)
-})
+  document.removeEventListener("click", closeMenu);
+});
 </script>
 
 <template>
-  <div class="relative" ref="menuRef">
+  <div ref="menuRef" class="relative">
     <button
       class="grid place-items-center w-9 h-9 border border-border rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
-      @click="toggleMenu"
       title="Acciones"
+      @click="toggleMenu"
     >
       <MoreVertical :size="16" />
     </button>

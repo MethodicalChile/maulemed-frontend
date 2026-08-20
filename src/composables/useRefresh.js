@@ -1,19 +1,19 @@
-import { ref } from 'vue'
+import { ref } from "vue";
 
-const refreshFunction = ref(null)
+const refreshFunction = ref(null);
 
 export function useRefresh() {
   function setRefreshFunction(fn) {
-    refreshFunction.value = fn
+    refreshFunction.value = fn;
   }
 
   function clearRefreshFunction() {
-    refreshFunction.value = null
+    refreshFunction.value = null;
   }
 
   return {
     refreshFunction,
     setRefreshFunction,
-    clearRefreshFunction
-  }
+    clearRefreshFunction,
+  };
 }

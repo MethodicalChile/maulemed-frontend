@@ -1,43 +1,50 @@
 <script setup>
-import { computed } from 'vue'
-import { ChevronLeft, ChevronRight } from 'lucide-vue-next'
+import { computed } from "vue";
+import { ChevronLeft, ChevronRight } from "lucide-vue-next";
 
 const props = defineProps({
-  count:    { type: Number, required: true },
-  page:     { type: Number, required: true },
+  count: { type: Number, required: true },
+  page: { type: Number, required: true },
   pageSize: { type: Number, default: 20 },
-})
+});
 
-const emit = defineEmits(['change'])
+const emit = defineEmits(["change"]);
 
-const totalPages = computed(() => Math.ceil(props.count / props.pageSize))
+const totalPages = computed(() => Math.ceil(props.count / props.pageSize));
 
 const pages = computed(() => {
-  const total   = totalPages.value
-  const current = props.page
-  const range   = []
-  const delta   = 2
+  const total = totalPages.value;
+  const current = props.page;
+  const range = [];
+  const delta = 2;
 
-  for (let i = Math.max(1, current - delta); i <= Math.min(total, current + delta); i++) {
-    range.push(i)
+  for (
+    let i = Math.max(1, current - delta);
+    i <= Math.min(total, current + delta);
+    i++
+  ) {
+    range.push(i);
   }
 
-  if (range[0] > 2)                         range.unshift('...')
-  if (range[0] !== 1)                        range.unshift(1)
-  if (range[range.length - 1] < total - 1)  range.push('...')
-  if (range[range.length - 1] !== total)     range.push(total)
+  if (range[0] > 2) range.unshift("...");
+  if (range[0] !== 1) range.unshift(1);
+  if (range[range.length - 1] < total - 1) range.push("...");
+  if (range[range.length - 1] !== total) range.push(total);
 
-  return range
-})
+  return range;
+});
 
-const from = computed(() => (props.page - 1) * props.pageSize + 1)
-const to   = computed(() => Math.min(props.page * props.pageSize, props.count))
+const from = computed(() => (props.page - 1) * props.pageSize + 1);
+const to = computed(() => Math.min(props.page * props.pageSize, props.count));
 </script>
 
 <template>
-  <div v-if="totalPages > 1" class="flex items-center justify-between gap-4 mt-6">
+  <div
+    v-if="totalPages > 1"
+    class="flex items-center justify-between gap-4 mt-6"
+  >
     <span class="text-sm font-medium text-foreground">
-      {{ from }}–{{ to }} de {{ count.toLocaleString('es-CL') }}
+      {{ from }}–{{ to }} de {{ count.toLocaleString("es-CL") }}
     </span>
 
     <div class="flex items-center gap-1">
@@ -54,7 +61,12 @@ const to   = computed(() => Math.min(props.page * props.pageSize, props.count))
         <span v-if="p === '...'" class="px-2 text-muted-foreground">…</span>
         <button
           v-else
-          :class="['w-9 h-9 rounded-lg text-sm font-semibold transition-colors', p === page ? 'bg-primary text-primary-foreground shadow-md' : 'border border-border bg-card text-foreground hover:bg-muted']"
+          :class="[
+            'w-9 h-9 rounded-lg text-sm font-semibold transition-colors',
+            p === page
+              ? 'bg-primary text-primary-foreground shadow-md'
+              : 'border border-border bg-card text-foreground hover:bg-muted',
+          ]"
           @click="emit('change', p)"
         >
           {{ p }}
@@ -73,8 +85,10 @@ const to   = computed(() => Math.min(props.page * props.pageSize, props.count))
   </div>
 
   <div v-else-if="count > 0" class="flex items-center mt-6">
-    <span class="text-sm font-bold text-primary bg-primary/10 px-3 py-1 rounded-full border border-primary/20">
-      {{ count.toLocaleString('es-CL') }} registro{{ count !== 1 ? 's' : '' }}
+    <span
+      class="text-sm font-bold text-primary bg-primary/10 px-3 py-1 rounded-full border border-primary/20"
+    >
+      {{ count.toLocaleString("es-CL") }} registro{{ count !== 1 ? "s" : "" }}
     </span>
   </div>
 </template>

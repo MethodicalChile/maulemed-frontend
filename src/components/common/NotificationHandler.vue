@@ -1,24 +1,24 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
-import emitter from '@/utils/eventBus'
-import AppAlert from '@/components/common/AppAlert.vue'
+import { ref, onMounted, onUnmounted } from "vue";
+import emitter from "@/utils/eventBus";
+import AppAlert from "@/components/common/AppAlert.vue";
 
-const error = ref(null)
+const error = ref(null);
 
 const handleError = (response) => {
-  error.value = response.data?.message || 'Error inesperado'
+  error.value = response.data?.message || "Error inesperado";
   setTimeout(() => {
-    error.value = null
-  }, 5000)
-}
+    error.value = null;
+  }, 5000);
+};
 
 onMounted(() => {
-  emitter.on('api:error', handleError)
-})
+  emitter.on("api:error", handleError);
+});
 
 onUnmounted(() => {
-  emitter.off('api:error', handleError)
-})
+  emitter.off("api:error", handleError);
+});
 </script>
 
 <template>

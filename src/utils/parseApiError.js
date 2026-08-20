@@ -14,14 +14,14 @@
  * Acepta string, array de strings, u objeto anidado.
  */
 function flattenFieldError(value) {
-  if (typeof value === 'string') return value
-  if (Array.isArray(value)) return value.map(flattenFieldError).join(', ')
-  if (value && typeof value === 'object') {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.map(flattenFieldError).join(", ");
+  if (value && typeof value === "object") {
     return Object.entries(value)
       .map(([k, v]) => `${k}: ${flattenFieldError(v)}`)
-      .join(' | ')
+      .join(" | ");
   }
-  return String(value)
+  return String(value);
 }
 
 /**
@@ -32,48 +32,48 @@ function flattenFieldError(value) {
  * @param {string}  fallback — Texto por defecto si no hay nada legible
  * @returns {string}
  */
-export function parseApiError(err, fallback = 'Ocurrió un error inesperado.') {
-  if (!err) return fallback
+export function parseApiError(err, fallback = "Ocurrió un error inesperado.") {
+  if (!err) return fallback;
 
   // Si ya es string, devolverlo directamente
-  if (typeof err === 'string') return err
+  if (typeof err === "string") return err;
 
   // Si viene de Axios: err.response.data
-  const data = err?.response?.data ?? err
+  const data = err?.response?.data ?? err;
 
-  if (!data) return fallback
+  if (!data) return fallback;
 
   // Formato 1 — envelope { message, errors }
-  if (data.errors && typeof data.errors === 'object') {
+  if (data.errors && typeof data.errors === "object") {
     const lines = Object.entries(data.errors).map(([field, msgs]) => {
-      const label = field === 'non_field_errors' ? '' : `${field}: `
-      return `${label}${flattenFieldError(msgs)}`
-    })
-    return lines.join('\n') || data.message || fallback
+      const label = field === "non_field_errors" ? "" : `${field}: `;
+      return `${label}${flattenFieldError(msgs)}`;
+    });
+    return lines.join("\n") || data.message || fallback;
   }
 
   // Formato 2 — { message }
-  if (typeof data.message === 'string' && data.message) return data.message
+  if (typeof data.message === "string" && data.message) return data.message;
 
   // Formato 3 — { detail }
-  if (typeof data.detail === 'string' && data.detail) return data.detail
+  if (typeof data.detail === "string" && data.detail) return data.detail;
 
   // Formato 4 — objeto de errores de validación DRF planos { field: [...] }
-  if (typeof data === 'object' && !Array.isArray(data)) {
-    const entries = Object.entries(data)
+  if (typeof data === "object" && !Array.isArray(data)) {
+    const entries = Object.entries(data);
     if (entries.length > 0) {
       const lines = entries.map(([field, msgs]) => {
-        const label = field === 'non_field_errors' ? '' : `${field}: `
-        return `${label}${flattenFieldError(msgs)}`
-      })
-      return lines.join('\n')
+        const label = field === "non_field_errors" ? "" : `${field}: `;
+        return `${label}${flattenFieldError(msgs)}`;
+      });
+      return lines.join("\n");
     }
   }
 
   // Formato 5 — array directo de mensajes
   if (Array.isArray(data)) {
-    return data.map(flattenFieldError).join('\n')
+    return data.map(flattenFieldError).join("\n");
   }
 
-  return fallback
+  return fallback;
 }
