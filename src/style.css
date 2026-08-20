@@ -39,6 +39,9 @@
     --color-muted: #E2E8F0;
     --color-muted-foreground: #475569;
     --color-border: #CBD5E1;
+    --scrollbar-track: var(--color-muted);
+    --scrollbar-thumb: var(--color-border);
+    --scrollbar-thumb-hover: var(--color-primary);
   }
 
   .dark {
@@ -55,6 +58,30 @@
     
     --color-destructive: #FB7185;
     --color-destructive-foreground: #0F172A;
+    --scrollbar-track: var(--color-muted);
+    --scrollbar-thumb: var(--color-border);
+    --scrollbar-thumb-hover: var(--color-primary);
+  }
+
+  /* Scrollbar personalizado */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
   }
 }
 

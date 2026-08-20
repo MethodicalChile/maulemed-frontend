@@ -1,292 +1,403 @@
 <script setup>
-import { ref, onMounted } from 'vue'
-import { Search, Plus, Pencil, Trash2 } from 'lucide-vue-next'
-import { inventoryApi } from '@/api/inventory.api'
-import { optionsApi } from '@/api/options.api'
-import { useList } from '@/composables/useList'
-import { useForm } from '@/composables/useForm'
-import { usePermissions } from '@/composables/usePermissions'
-import PageHeader from '@/components/common/PageHeader.vue'
-import AppTable from '@/components/common/AppTable.vue'
-import AppModal from '@/components/common/AppModal.vue'
-import AppPagination from '@/components/common/AppPagination.vue'
-import AppAlert from '@/components/common/AppAlert.vue'
-import StatusBadge from '@/components/common/StatusBadge.vue'
-import FormField from '@/components/common/FormField.vue'
-import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
-import AppInput from '@/components/common/AppInput.vue'
-import AppSelect from '@/components/common/AppSelect.vue'
-import AppTextarea from '@/components/common/AppTextarea.vue'
+import { ref, onMounted, onUnmounted, computed, watchEffect } from "vue";
+import { useRefresh } from "@/composables/useRefresh";
+import { Search, Plus, Pencil, Trash2, MoreVertical } from "lucide-vue-next";
+import { inventoryApi } from "@/api/inventory.api";
+import { optionsApi } from "@/api/options.api";
+import { useList } from "@/composables/useList";
+import { useForm } from "@/composables/useForm";
+import { usePermissions } from "@/composables/usePermissions";
+import PageHeader from "@/components/common/PageHeader.vue";
+import AppTable from "@/components/common/AppTable.vue";
+import AppModal from "@/components/common/AppModal.vue";
+import AppPagination from "@/components/common/AppPagination.vue";
+import AppAlert from "@/components/common/AppAlert.vue";
+import StatusBadge from "@/components/common/StatusBadge.vue";
+import FormField from "@/components/common/FormField.vue";
+import ConfirmDialog from "@/components/common/ConfirmDialog.vue";
+import AppInput from "@/components/common/AppInput.vue";
+import AppSelect from "@/components/common/AppSelect.vue";
+import AppTableFilterInput from "@/components/common/AppTableFilterInput.vue";
+import AppTableFilterSelect from "@/components/common/AppTableFilterSelect.vue";
+import AppMultiSelect from "@/components/common/AppMultiSelect.vue";
+import AppTextarea from "@/components/common/AppTextarea.vue";
 
-const { canManageInventory } = usePermissions()
+const {
+  canViewInventory,
+  canCreateInventory,
+  canEditInventory,
+  canDeleteInventory,
+  canViewWarehouses,
+  canCreateWarehouses,
+  canEditWarehouses,
+  canDeleteWarehouses,
+} = usePermissions();
+const { setRefreshFunction, clearRefreshFunction } = useRefresh();
+
+// ── Actions Modal ─────────────────────────────────────────────────────────────
+const showActionModal = ref(false);
+const activeActionRow = ref(null);
+
+function openActions(row) {
+  activeActionRow.value = row;
+  showActionModal.value = true;
+}
+
+// ── Movimientos ─────────────────────────────────────────────────────────────
+const movColumns = [
+  { key: "movement_type", label: "Tipo" },
+  { key: "product", label: "Producto" },
+  { key: "quantity", label: "Cantidad" },
+  { key: "origin", label: "Origen" },
+  { key: "destination", label: "Destino" },
+  { key: "created_at", label: "Fecha" },
+];
+const movList = useList(inventoryApi.listMovements);
+
+async function loadAll() {
+  await Promise.all([
+    stockList.load(),
+    lotList.load(),
+    movList.load(),
+    warehouseList.load(),
+  ]);
+}
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
-const tabs = ['Stock', 'Lotes', 'Movimientos', 'Bodegas']
-const activeTab = ref('Stock')
+const tabs = computed(() => [
+  ...(canViewInventory.value ? ["Stock", "Lotes", "Movimientos"] : []),
+  ...(canViewWarehouses.value ? ["Bodegas"] : []),
+]);
+
+const activeTab = ref(null);
+
+watchEffect(() => {
+  if (!tabs.value.includes(activeTab.value)) {
+    activeTab.value = tabs.value[0] ?? null;
+  }
+});
 
 // ── Stock ─────────────────────────────────────────────────────────────────────
 const stockColumns = [
-  { key: 'product',           label: 'Producto' },
-  { key: 'warehouse',         label: 'Bodega' },
-  { key: 'quantity',          label: 'Cantidad' },
-  { key: 'reserved_quantity', label: 'Reservado' },
-  { key: 'available',         label: 'Disponible' },
-]
-const stockList = useList(inventoryApi.listStocks)
+  { key: "product", label: "Producto" },
+  { key: "warehouse", label: "Bodega" },
+  { key: "quantity", label: "Cantidad" },
+  { key: "reserved_quantity", label: "Reservado" },
+  { key: "available", label: "Disponible" },
+  { key: "min_level", label: "Mínimo" },
+  { key: "max_level", label: "Máximo" },
+  { key: "actions", label: "", width: "80px" },
+];
+const stockList = useList(inventoryApi.listStocks);
+const showStockForm = ref(false);
+const editingStock = ref(null);
+const stockForm = ref({ min_level: 0, max_level: 0 });
+const stockFormLoading = ref(false);
+const stockFormError = ref("");
+
+function openEditStock(row) {
+  editingStock.value = row;
+  stockForm.value = { min_level: row.min_level, max_level: row.max_level };
+  stockFormError.value = "";
+  showStockForm.value = true;
+}
+
+async function handleStockSubmit() {
+  stockFormLoading.value = true;
+  stockFormError.value = "";
+  try {
+    await inventoryApi.updateStock(editingStock.value.uuid, stockForm.value);
+    showStockForm.value = false;
+    stockList.load();
+  } catch (e) {
+    stockFormError.value =
+      e.response?.data?.message ?? "Error al actualizar niveles";
+  } finally {
+    stockFormLoading.value = false;
+  }
+}
 
 // ── Lotes ─────────────────────────────────────────────────────────────────────
 const lotColumns = [
-  { key: 'product',         label: 'Producto' },
-  { key: 'lot_number',      label: 'N° Lote' },
-  { key: 'expiration_date', label: 'Vencimiento' },
-  { key: 'quantity',        label: 'Cantidad' },
-  { key: 'status',          label: 'Estado' },
-  { key: 'actions',         label: '', width: '60px' },
-]
-const lotList = useList(inventoryApi.listLots)
+  { key: "product", label: "Producto" },
+  { key: "lot_number", label: "N° Lote" },
+  { key: "expiration_date", label: "Vencimiento" },
+  { key: "quantity", label: "Cantidad" },
+  { key: "status", label: "Estado" },
+  { key: "actions", label: "", width: "60px" },
+];
+const lotList = useList(inventoryApi.listLots);
 
-const showLotForm   = ref(false)
-const editingLot    = ref(null)
-const warehouses    = ref([])
+const showLotForm = ref(false);
+const editingLot = ref(null);
+const warehouses = ref([]);
 
 const emptyLotForm = {
-  status: 'DISPONIBLE',
-}
+  status: "DISPONIBLE",
+};
 
-const { form: lotForm, loading: lotLoading, error: lotError, fill: lotFill, submit: lotSubmit } = useForm(
-  emptyLotForm,
-  (data) => inventoryApi.updateLot(editingLot.value.uuid, data)
-)
+const {
+  form: lotForm,
+  loading: lotLoading,
+  error: lotError,
+  fill: lotFill,
+  submit: lotSubmit,
+} = useForm(emptyLotForm, (data) =>
+  inventoryApi.updateLot(editingLot.value.uuid, data),
+);
 
 async function handleLotSubmit() {
-  await lotSubmit()
-  showLotForm.value = false
-  lotList.load()
+  await lotSubmit();
+  showLotForm.value = false;
+  lotList.load();
 }
 
-// ── Movimientos ───────────────────────────────────────────────────────────────
-const movColumns = [
-  { key: 'movement_type', label: 'Tipo' },
-  { key: 'product',       label: 'Producto' },
-  { key: 'quantity',      label: 'Cantidad' },
-  { key: 'origin',        label: 'Origen' },
-  { key: 'destination',   label: 'Destino' },
-  { key: 'created_at',    label: 'Fecha' },
-]
-const movList = useList(inventoryApi.listMovements)
-
-const showMovForm  = ref(false)
-const allProducts  = ref([])
+const showMovForm = ref(false);
+const allProducts = ref([]);
 
 const emptyMovForm = {
-  movement_type:         'AJUSTE_POSITIVO',
-  product:               '',
-  warehouse_destination: '',
-  warehouse_origin:      '',
-  quantity:              '',
-  reason:                '',
-}
+  movement_type: "AJUSTE_POSITIVO",
+  product: "",
+  warehouse_destination: "",
+  warehouse_origin: "",
+  quantity: "",
+  reason: "",
+};
 
-const { form: movForm, error: movError, reset: movReset } = useForm(
+const {
+  form: movForm,
+  error: movError,
+  reset: movReset,
+} = useForm(
   emptyMovForm,
-  () => {} // submit manejado manualmente abajo
-)
-const movLoading = ref(false)
+  () => {}, // submit manejado manualmente abajo
+);
+const movLoading = ref(false);
 
 async function handleMovSubmit() {
-  movError.value = null
-  movLoading.value = true
+  movError.value = null;
+  movLoading.value = true;
   try {
-    const type = movForm.movement_type
+    const type = movForm.movement_type;
     const payload = {
-      product_uuid:  movForm.product,
-      quantity:      movForm.quantity,
-      reason:        movForm.reason || undefined,
-    }
+      product_uuid: movForm.product,
+      quantity: movForm.quantity,
+      reason: movForm.reason || undefined,
+    };
 
-    if (['AJUSTE_POSITIVO', 'AJUSTE_NEGATIVO'].includes(type)) {
+    if (["AJUSTE_POSITIVO", "AJUSTE_NEGATIVO"].includes(type)) {
       // adjust espera quantity positiva para + y negativa para -
-      const qty = type === 'AJUSTE_NEGATIVO'
-        ? -Math.abs(movForm.quantity)
-        : Math.abs(movForm.quantity)
+      const qty =
+        type === "AJUSTE_NEGATIVO"
+          ? -Math.abs(movForm.quantity)
+          : Math.abs(movForm.quantity);
       await inventoryApi.adjustStock({
-        warehouse_uuid: movForm.warehouse_origin || movForm.warehouse_destination,
-        product_uuid:   movForm.product,
-        quantity:       qty,
-        reason:         movForm.reason || 'Ajuste manual',
-      })
-    } else if (['EGRESO_CONSUMO', 'MERMA', 'VENCIMIENTO'].includes(type)) {
+        warehouse_uuid:
+          movForm.warehouse_origin || movForm.warehouse_destination,
+        product_uuid: movForm.product,
+        quantity: qty,
+        reason: movForm.reason || "Ajuste manual",
+      });
+    } else if (["EGRESO_CONSUMO", "MERMA", "VENCIMIENTO"].includes(type)) {
       await inventoryApi.decreaseStock({
         warehouse_uuid: movForm.warehouse_origin,
-        product_uuid:   movForm.product,
-        quantity:       movForm.quantity,
-        reason:         movForm.reason || undefined,
-      })
+        product_uuid: movForm.product,
+        quantity: movForm.quantity,
+        reason: movForm.reason || undefined,
+      });
     } else {
       // Fallback: POST directo para tipos no cubiertos por acciones custom
       await inventoryApi.createMovement({
-        movement_type:         type,
-        product:               movForm.product,
-        warehouse_origin:      movForm.warehouse_origin  || null,
+        movement_type: type,
+        product: movForm.product,
+        warehouse_origin: movForm.warehouse_origin || null,
         warehouse_destination: movForm.warehouse_destination || null,
-        quantity:              movForm.quantity,
-        reason:                movForm.reason || null,
-      })
+        quantity: movForm.quantity,
+        reason: movForm.reason || null,
+      });
     }
 
-    showMovForm.value = false
-    movList.load()
-    stockList.load()
+    showMovForm.value = false;
+    movList.load();
+    stockList.load();
   } catch (e) {
-    movError.value = e.response?.data?.message ?? 'Error al registrar el movimiento.'
+    movError.value =
+      e.response?.data?.message ?? "Error al registrar el movimiento.";
   } finally {
-    movLoading.value = false
+    movLoading.value = false;
   }
 }
 
 // ── Bodegas ───────────────────────────────────────────────────────────────────
-const warehouseList = useList(inventoryApi.listWarehouses)
+const warehouseList = useList(inventoryApi.listWarehouses);
 
 const warehouseColumns = [
-  { key: 'name',           label: 'Nombre' },
-  { key: 'branch',         label: 'Sucursal' },
-  { key: 'warehouse_type', label: 'Tipo',   width: '130px' },
-  { key: 'is_active',      label: 'Estado', width: '100px' },
-  { key: 'actions',        label: '',       width: '100px' },
-]
+  { key: "name", label: "Nombre" },
+  { key: "branch", label: "Sucursal" },
+  { key: "warehouse_type", label: "Tipo", width: "130px" },
+  { key: "is_active", label: "Estado", width: "100px" },
+  { key: "actions", label: "", width: "100px" },
+];
 
-const showWarehouseForm  = ref(false)
-const editingWarehouse   = ref(null)
-const deleteWarehouse    = ref(null)
-const deleteWhLoading    = ref(false)
-const whFormLoading      = ref(false)
-const whFormError        = ref('')
-const allBranches        = ref([])
+const showWarehouseForm = ref(false);
+const editingWarehouse = ref(null);
+const deleteWarehouse = ref(null);
+const deleteWhLoading = ref(false);
+const whFormLoading = ref(false);
+const whFormError = ref("");
+const allBranches = ref([]);
 
 const warehouseForm = ref({
-  name: '', branch: '', warehouse_type: 'GENERAL',
-  description: '', is_active: true,
-})
+  name: "",
+  branch: "",
+  warehouse_type: "GENERAL",
+  is_active: true,
+});
 
 const WAREHOUSE_TYPES = [
-  { value: 'GENERAL',    label: 'General' },
-  { value: 'FARMACIA',   label: 'Farmacia' },
-  { value: 'INSUMOS',    label: 'Insumos' },
-  { value: 'CRITICO',    label: 'Crítico' },
-  { value: 'TRANSITO',   label: 'En tránsito' },
-  { value: 'DEVOLUCION', label: 'Devolución' },
-]
+  { value: "GENERAL", label: "General" },
+  { value: "INSUMOS_MEDICOS", label: "Insumos médicos" },
+  { value: "OFICINA", label: "Oficina" },
+  { value: "ASEO", label: "Aseo" },
+  { value: "MEDICAMENTOS", label: "Medicamentos" },
+  { value: "CARRO_PARO", label: "Carro de paro" },
+];
 
 function openCreateWarehouse() {
-  editingWarehouse.value = null
-  whFormError.value = ''
-  warehouseForm.value = { name: '', branch: '', warehouse_type: 'GENERAL', description: '', is_active: true }
-  showWarehouseForm.value = true
+  editingWarehouse.value = null;
+  whFormError.value = "";
+  warehouseForm.value = {
+    name: "",
+    branch: "",
+    warehouse_type: "GENERAL",
+    is_active: true,
+  };
+  showWarehouseForm.value = true;
 }
 
 function openEditWarehouse(row) {
-  editingWarehouse.value = row
-  whFormError.value = ''
+  editingWarehouse.value = row;
+  whFormError.value = "";
   warehouseForm.value = {
-    name: row.name, branch: row.branch,
-    warehouse_type: row.warehouse_type ?? 'GENERAL',
-    description: row.description ?? '', is_active: row.is_active,
-  }
-  showWarehouseForm.value = true
+    name: row.name,
+    branch: row.branch,
+    warehouse_type: row.warehouse_type ?? "GENERAL",
+    is_active: row.is_active,
+  };
+  showWarehouseForm.value = true;
 }
 
 async function handleWarehouseSubmit() {
-  whFormLoading.value = true; whFormError.value = ''
+  whFormLoading.value = true;
+  whFormError.value = "";
   try {
     editingWarehouse.value
-      ? await inventoryApi.updateWarehouse(editingWarehouse.value.uuid, warehouseForm.value)
-      : await inventoryApi.createWarehouse(warehouseForm.value)
-    showWarehouseForm.value = false
-    warehouseList.load()
+      ? await inventoryApi.updateWarehouse(
+          editingWarehouse.value.uuid,
+          warehouseForm.value,
+        )
+      : await inventoryApi.createWarehouse(warehouseForm.value);
+    showWarehouseForm.value = false;
+    warehouseList.load();
     // Refrescar el array local de bodegas que usan los selects
-    const res = await optionsApi.getWarehouses().catch(() => null)
+    const res = await optionsApi.getWarehouses().catch(() => null);
     if (res) {
-      const d = res.data?.data ?? res.data
-      warehouses.value = Array.isArray(d) ? d : d.results ?? d
+      const d = res.data?.data ?? res.data;
+      warehouses.value = Array.isArray(d) ? d : (d.results ?? d);
     }
-  } catch (e) { whFormError.value = e.response?.data?.message ?? 'Error al guardar' }
-  finally { whFormLoading.value = false }
+  } catch (e) {
+    whFormError.value = e.response?.data?.message ?? "Error al guardar";
+  } finally {
+    whFormLoading.value = false;
+  }
 }
 
 async function confirmDeleteWarehouse() {
-  deleteWhLoading.value = true
+  deleteWhLoading.value = true;
   try {
-    await inventoryApi.deleteWarehouse(deleteWarehouse.value.uuid)
-    deleteWarehouse.value = null
-    warehouseList.load()
-  } finally { deleteWhLoading.value = false }
+    await inventoryApi.deleteWarehouse(deleteWarehouse.value.uuid);
+    deleteWarehouse.value = null;
+    warehouseList.load();
+  } finally {
+    deleteWhLoading.value = false;
+  }
 }
 
 // ── Mount ─────────────────────────────────────────────────────────────────────
 onMounted(async () => {
-  stockList.load()
-  lotList.load()
-  movList.load()
-  warehouseList.load()
+  await loadAll();
+  setRefreshFunction(loadAll);
 
   const [whRes, prodRes, brRes] = await Promise.allSettled([
     optionsApi.getWarehouses(),
     optionsApi.getProducts(),
     optionsApi.getBranches(),
-  ])
-  if (whRes.status === 'fulfilled') {
-    const d = whRes.value.data?.data ?? whRes.value.data
-    warehouses.value = Array.isArray(d) ? d : d.results ?? d
+  ]);
+  if (whRes.status === "fulfilled") {
+    const d = whRes.value.data?.data ?? whRes.value.data;
+    warehouses.value = Array.isArray(d) ? d : (d.results ?? d);
   }
-  if (prodRes.status === 'fulfilled') {
-    const d = prodRes.value.data?.data ?? prodRes.value.data
-    allProducts.value = Array.isArray(d) ? d : d.results ?? d
+  if (prodRes.status === "fulfilled") {
+    const d = prodRes.value.data?.data ?? prodRes.value.data;
+    allProducts.value = Array.isArray(d) ? d : (d.results ?? d);
   }
-  if (brRes.status === 'fulfilled') {
-    const d = brRes.value.data?.data ?? brRes.value.data
-    allBranches.value = Array.isArray(d) ? d : d.results ?? d
+  if (brRes.status === "fulfilled") {
+    const d = brRes.value.data?.data ?? brRes.value.data;
+    allBranches.value = Array.isArray(d) ? d : (d.results ?? d);
   }
-})
+});
+
+onUnmounted(clearRefreshFunction);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmt(val) {
-  if (val == null) return '—'
-  return parseFloat(val).toLocaleString('es-CL', { maximumFractionDigits: 3 })
+  if (val == null) return "—";
+  return parseFloat(val).toLocaleString("es-CL", { maximumFractionDigits: 3 });
 }
 
 function fmtDate(val) {
-  if (!val) return '—'
-  return new Date(val).toLocaleDateString('es-CL')
+  if (!val) return "—";
+  return new Date(val).toLocaleDateString("es-CL");
 }
 
-const LOT_STATUSES = ['DISPONIBLE', 'RESERVADO', 'VENCIDO', 'CONSUMIDO', 'BLOQUEADO']
+const LOT_STATUSES = [
+  "DISPONIBLE",
+  "RESERVADO",
+  "VENCIDO",
+  "CONSUMIDO",
+  "BLOQUEADO",
+];
 
 const MOV_TYPES_WRITE = [
-  { value: 'AJUSTE_POSITIVO',  label: 'Ajuste positivo' },
-  { value: 'AJUSTE_NEGATIVO',  label: 'Ajuste negativo' },
-  { value: 'EGRESO_CONSUMO',   label: 'Egreso por consumo' },
-  { value: 'MERMA',            label: 'Merma' },
-  { value: 'VENCIMIENTO',      label: 'Vencimiento' },
-]
+  { value: "AJUSTE_POSITIVO", label: "Ajuste positivo" },
+  { value: "AJUSTE_NEGATIVO", label: "Ajuste negativo" },
+  { value: "EGRESO_CONSUMO", label: "Egreso por consumo" },
+  { value: "MERMA", label: "Merma" },
+  { value: "VENCIMIENTO", label: "Vencimiento" },
+];
 
 // Movimientos que requieren bodega origen
-const needsOrigin = (type) => ['EGRESO_CONSUMO', 'AJUSTE_NEGATIVO', 'MERMA', 'VENCIMIENTO'].includes(type)
+const needsOrigin = (type) =>
+  ["EGRESO_CONSUMO", "AJUSTE_NEGATIVO", "MERMA", "VENCIMIENTO"].includes(type);
 // Movimientos que requieren bodega destino
-const needsDestination = (type) => ['AJUSTE_POSITIVO'].includes(type)
+const needsDestination = (type) => ["AJUSTE_POSITIVO"].includes(type);
 </script>
 
 <template>
   <section class="page">
     <PageHeader title="Inventario" subtitle="Stock, lotes y movimientos">
       <button
-        v-if="canManageInventory && activeTab === 'Movimientos'"
+        v-if="canCreateInventory && activeTab === 'Movimientos'"
         class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all"
-        @click="movReset(); showMovForm = true"
+        @click="
+          movReset();
+          showMovForm = true;
+        "
       >
         <Plus :size="16" /> Registrar movimiento
       </button>
       <button
-        v-if="canManageInventory && activeTab === 'Bodegas'"
+        v-if="canCreateWarehouses && activeTab === 'Bodegas'"
         class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all"
         @click="openCreateWarehouse"
       >
@@ -298,7 +409,12 @@ const needsDestination = (type) => ['AJUSTE_POSITIVO'].includes(type)
       <button
         v-for="tab in tabs"
         :key="tab"
-        :class="['px-4 py-2 text-sm font-semibold border-b-2 transition-colors', activeTab === tab ? 'text-primary border-primary' : 'text-muted-foreground hover:text-foreground border-transparent']"
+        :class="[
+          'px-4 py-2 text-sm font-semibold border-b-2 transition-colors',
+          activeTab === tab
+            ? 'text-primary border-primary'
+            : 'text-muted-foreground hover:text-foreground border-transparent',
+        ]"
         @click="activeTab = tab"
       >
         {{ tab }}
@@ -307,35 +423,67 @@ const needsDestination = (type) => ['AJUSTE_POSITIVO'].includes(type)
 
     <!-- ── STOCK ── -->
     <template v-if="activeTab === 'Stock'">
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-xl bg-card border border-border shadow-sm mb-4">
-        <div class="relative col-span-2">
-          <Search :size="18" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <AppInput
-            type="text"
-            placeholder="Buscar producto..."
+      <AppAlert
+        v-if="stockList.error.value"
+        type="error"
+        :message="stockList.error.value"
+      />
+      <AppTable
+        :columns="stockColumns"
+        :rows="stockList.items.value"
+        :loading="stockList.loading.value"
+      >
+        <template #filter-product>
+          <AppTableFilterInput
+            placeholder="Buscar..."
             :model-value="stockList.params.search"
             @update:model-value="stockList.setParam('search', $event)"
-            class="pl-10"
           />
-        </div>
-        <AppSelect
-          :model-value="stockList.params.warehouse"
-          @update:model-value="stockList.setParam('warehouse', $event)"
-        >
-          <option value="">Todas las bodegas</option>
-          <option v-for="w in warehouses" :key="w.uuid" :value="w.uuid">{{ w.name }}</option>
-        </AppSelect>
-      </div>
-      <AppAlert v-if="stockList.error.value" type="error" :message="stockList.error.value" />
-      <AppTable :columns="stockColumns" :rows="stockList.items.value" :loading="stockList.loading.value">
-        <template #product="{ row }">{{ row.product_detail?.name ?? '—' }}</template>
-        <template #warehouse="{ row }">{{ row.warehouse_detail?.name ?? '—' }}</template>
+        </template>
+        <template #filter-warehouse>
+          <AppTableFilterSelect
+            :model-value="stockList.params.warehouse"
+            @update:model-value="stockList.setParam('warehouse', $event)"
+          >
+            <option value="">Todas</option>
+            <option v-for="w in warehouses" :key="w.uuid" :value="w.uuid">
+              {{ w.name }}
+            </option>
+          </AppTableFilterSelect>
+        </template>
+
+        <template #product="{ row }">{{
+          row.product_detail?.name ?? "—"
+        }}</template>
+        <template #warehouse="{ row }">{{
+          row.warehouse_detail?.name ?? "—"
+        }}</template>
         <template #quantity="{ row }">{{ fmt(row.quantity) }}</template>
-        <template #reserved_quantity="{ row }">{{ fmt(row.reserved_quantity) }}</template>
+        <template #reserved_quantity="{ row }">{{
+          fmt(row.reserved_quantity)
+        }}</template>
         <template #available="{ row }">
-          <span :class="parseFloat(row.available_quantity) <= 0 ? 'text-destructive font-semibold' : ''">
+          <span
+            :class="
+              parseFloat(row.available_quantity) <= 0
+                ? 'text-destructive font-semibold'
+                : ''
+            "
+          >
             {{ fmt(row.available_quantity) }}
           </span>
+        </template>
+        <template #min_level="{ row }">{{ fmt(row.min_level) }}</template>
+        <template #max_level="{ row }">{{ fmt(row.max_level) }}</template>
+        <template #actions="{ row }">
+          <button
+            v-if="canEditInventory"
+            class="grid place-items-center w-9 h-9 border border-border rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
+            title="Acciones"
+            @click="openActions(row)"
+          >
+            <MoreVertical :size="16" />
+          </button>
         </template>
       </AppTable>
       <AppPagination
@@ -348,23 +496,35 @@ const needsDestination = (type) => ['AJUSTE_POSITIVO'].includes(type)
 
     <!-- ── LOTES ── -->
     <template v-if="activeTab === 'Lotes'">
-      <AppAlert v-if="lotList.error.value" type="error" :message="lotList.error.value" />
-      <AppTable :columns="lotColumns" :rows="lotList.items.value" :loading="lotList.loading.value">
-        <template #product="{ row }">{{ row.product_detail?.name ?? '—' }}</template>
+      <AppAlert
+        v-if="lotList.error.value"
+        type="error"
+        :message="lotList.error.value"
+      />
+      <AppTable
+        :columns="lotColumns"
+        :rows="lotList.items.value"
+        :loading="lotList.loading.value"
+      >
+        <template #product="{ row }">{{
+          row.product_detail?.name ?? "—"
+        }}</template>
         <template #quantity="{ row }">{{ fmt(row.quantity) }}</template>
-        <template #expiration_date="{ row }">{{ fmtDate(row.expiration_date) }}</template>
-        <template #status="{ row }"><StatusBadge :status="row.status" /></template>
+        <template #expiration_date="{ row }">{{
+          fmtDate(row.expiration_date)
+        }}</template>
+        <template #status="{ row }"
+          ><StatusBadge :status="row.status"
+        /></template>
         <template #actions="{ row }">
-          <div class="flex gap-1.5 flex-wrap">
-            <button
-              v-if="canManageInventory"
-              class="grid place-items-center w-9 h-9 border border-border rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
-              title="Cambiar estado"
-              @click="editingLot = row; lotFill({ status: row.status }); showLotForm = true"
-            >
-              <Pencil :size="15" />
-            </button>
-          </div>
+          <button
+            v-if="canEditInventory"
+            class="grid place-items-center w-9 h-9 border border-border rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
+            title="Acciones"
+            @click="openActions(row)"
+          >
+            <MoreVertical :size="16" />
+          </button>
         </template>
       </AppTable>
       <AppPagination
@@ -377,25 +537,54 @@ const needsDestination = (type) => ['AJUSTE_POSITIVO'].includes(type)
 
     <!-- ── MOVIMIENTOS ── -->
     <template v-if="activeTab === 'Movimientos'">
-      <div class="p-4 rounded-xl bg-card border border-border shadow-sm mb-4">
-        <AppSelect
-          :model-value="movList.params.movement_type"
-          @update:model-value="movList.setParam('movement_type', $event)"
-        >
-          <option value="">Todos los tipos</option>
-          <option v-for="t in MOV_TYPES_WRITE" :key="t.value" :value="t.value">{{ t.label }}</option>
-        </AppSelect>
-      </div>
-      <AppAlert v-if="movList.error.value" type="error" :message="movList.error.value" />
+      <AppAlert
+        v-if="movList.error.value"
+        type="error"
+        :message="movList.error.value"
+      />
 
-      <AppTable :columns="movColumns" :rows="movList.items.value" :loading="movList.loading.value">
-        <template #movement_type="{ row }"><StatusBadge :status="row.movement_type" /></template>
-        <template #product="{ row }">{{ row.product_detail?.name ?? '—' }}</template>
-        <template #quantity="{ row }">{{ fmt(row.quantity) }}</template>
-        <template #origin="{ row }">{{ row.warehouse_origin_detail?.name ?? '—' }}</template>
-        <template #destination="{ row }">{{ row.warehouse_destination_detail?.name ?? '—' }}</template>
-        <template #created_at="{ row }">{{ fmtDate(row.created_at) }}</template>
+      <AppTable
+        :columns="movColumns"
+        :rows="movList.items.value"
+        :loading="movList.loading.value"
+      >
+        <template #filter-movement_type>
+          <AppMultiSelect
+            :options="MOV_TYPES_WRITE"
+            :model-value="
+              movList.params.movement_type ? [movList.params.movement_type] : []
+            "
+            @update:model-value="
+              movList.setParam('movement_type', $event[0] || '')
+            "
+          />
+        </template>
+
+        <template #movement_type="{ row }">
+          <StatusBadge :status="row.movement_type" />
+        </template>
+
+        <template #product="{ row }">
+          {{ row.product_detail?.name ?? "—" }}
+        </template>
+
+        <template #quantity="{ row }">
+          {{ fmt(row.quantity) }}
+        </template>
+
+        <template #origin="{ row }">
+          {{ row.warehouse_origin_detail?.name ?? "—" }}
+        </template>
+
+        <template #destination="{ row }">
+          {{ row.warehouse_destination_detail?.name ?? "—" }}
+        </template>
+
+        <template #created_at="{ row }">
+          {{ fmtDate(row.created_at) }}
+        </template>
       </AppTable>
+
       <AppPagination
         :count="movList.pagination.count"
         :page="movList.pagination.page"
@@ -406,45 +595,70 @@ const needsDestination = (type) => ['AJUSTE_POSITIVO'].includes(type)
 
     <!-- ── BODEGAS ── -->
     <template v-if="activeTab === 'Bodegas'">
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-xl bg-card border border-border shadow-sm mb-4">
-        <div class="relative col-span-2">
-          <Search :size="18" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <AppInput
-            type="text"
-            placeholder="Buscar bodega..."
+      <AppAlert
+        v-if="warehouseList.error.value"
+        type="error"
+        :message="warehouseList.error.value"
+      />
+      <AppTable
+        :columns="warehouseColumns"
+        :rows="warehouseList.items.value"
+        :loading="warehouseList.loading.value"
+      >
+        <template #filter-name>
+          <AppTableFilterInput
+            placeholder="Buscar..."
             :model-value="warehouseList.params.search"
             @update:model-value="warehouseList.setParam('search', $event)"
           />
-        </div>
-        <AppSelect
-          :model-value="warehouseList.params.is_active"
-          @update:model-value="warehouseList.setParam('is_active', $event)"
-        >
-          <option value="">Todas</option>
-          <option value="true">Activas</option>
-          <option value="false">Inactivas</option>
-        </AppSelect>
-      </div>
-      <AppAlert v-if="warehouseList.error.value" type="error" :message="warehouseList.error.value" />
-      <AppTable :columns="warehouseColumns" :rows="warehouseList.items.value" :loading="warehouseList.loading.value">
-        <template #branch="{ row }">{{ row.branch_detail?.name ?? '—' }}</template>
+        </template>
+        <template #filter-is_active>
+          <AppMultiSelect
+            :options="[
+              { value: 'true', label: 'Activas' },
+              { value: 'false', label: 'Inactivas' },
+            ]"
+            :model-value="
+              warehouseList.params.is_active
+                ? [warehouseList.params.is_active]
+                : []
+            "
+            @update:model-value="
+              warehouseList.setParam('is_active', $event[0] || '')
+            "
+          />
+        </template>
+
+        <template #branch="{ row }">{{
+          row.branch_detail?.name ?? "—"
+        }}</template>
         <template #warehouse_type="{ row }">
-          <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground">{{ row.warehouse_type ?? '—' }}</span>
+          <span
+            class="px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground"
+            >{{ row.warehouse_type ?? "—" }}</span
+          >
         </template>
         <template #is_active="{ row }">
-          <span :class="['px-2 py-0.5 rounded-full text-xs font-medium', row.is_active ? 'bg-green-100 text-green-700' : 'bg-muted text-muted-foreground']">
-            {{ row.is_active ? 'Activa' : 'Inactiva' }}
+          <span
+            :class="[
+              'px-2 py-0.5 rounded-full text-xs font-medium',
+              row.is_active
+                ? 'bg-green-100 text-green-700'
+                : 'bg-muted text-muted-foreground',
+            ]"
+          >
+            {{ row.is_active ? "Activa" : "Inactiva" }}
           </span>
         </template>
         <template #actions="{ row }">
-          <div class="flex gap-1.5 flex-wrap">
-            <button v-if="canManageInventory" class="grid place-items-center w-9 h-9 border border-border rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-all" title="Editar" @click="openEditWarehouse(row)">
-              <Pencil :size="15" />
-            </button>
-            <button v-if="canManageInventory" class="grid place-items-center w-9 h-9 border border-border rounded-sm text-muted-foreground hover:bg-destructive/10 hover:text-destructive hover:border-destructive/20 transition-all" title="Eliminar" @click="deleteWarehouse = row">
-              <Trash2 :size="15" />
-            </button>
-          </div>
+          <button
+            v-if="canEditWarehouses || canDeleteWarehouses"
+            class="grid place-items-center w-9 h-9 border border-border rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
+            title="Acciones"
+            @click="openActions(row)"
+          >
+            <MoreVertical :size="16" />
+          </button>
         </template>
       </AppTable>
       <AppPagination
@@ -454,6 +668,129 @@ const needsDestination = (type) => ['AJUSTE_POSITIVO'].includes(type)
         @change="warehouseList.setPage"
       />
     </template>
+
+    <!-- ── Actions Modal ── -->
+    <AppModal
+      v-if="showActionModal"
+      :title="`Acciones - ${activeActionRow?.name ?? activeActionRow?.product_detail?.name ?? 'Registro'}`"
+      size="sm"
+      @close="showActionModal = false"
+    >
+      <div class="grid gap-2">
+        <!-- Stock Actions -->
+        <template v-if="activeTab === 'Stock'">
+          <button
+            v-if="canEditInventory"
+            class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+            @click="
+              openEditStock(activeActionRow);
+              showActionModal = false;
+            "
+          >
+            <Pencil :size="16" /> Editar niveles
+          </button>
+        </template>
+
+        <!-- Lots Actions -->
+        <template v-if="activeTab === 'Lotes'">
+          <button
+            v-if="canEditInventory"
+            class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+            @click="
+              editingLot = activeActionRow;
+              lotFill({ status: activeActionRow.status });
+              showLotForm = true;
+              showActionModal = false;
+            "
+          >
+            <Pencil :size="16" /> Cambiar estado
+          </button>
+        </template>
+
+        <!-- Warehouse Actions -->
+        <template v-if="activeTab === 'Bodegas'">
+          <button
+            v-if="canEditWarehouses"
+            class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+            @click="
+              openEditWarehouse(activeActionRow);
+              showActionModal = false;
+            "
+          >
+            <Pencil :size="16" /> Editar
+          </button>
+
+          <button
+            v-if="canDeleteWarehouses"
+            class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium text-destructive"
+            @click="
+              deleteWarehouse = activeActionRow;
+              showActionModal = false;
+            "
+          >
+            <Trash2 :size="16" /> Eliminar
+          </button>
+        </template>
+      </div>
+    </AppModal>
+
+    <!-- ── Modal editar niveles stock ── -->
+    <AppModal
+      v-if="showStockForm"
+      title="Editar niveles de stock"
+      size="sm"
+      @close="showStockForm = false"
+    >
+      <form class="grid grid-cols-1 gap-4" @submit.prevent="handleStockSubmit">
+        <AppAlert
+          v-if="stockFormError"
+          type="error"
+          :message="stockFormError"
+        />
+        <FormField label="Producto" class="col-span-full">
+          <input
+            :value="editingStock?.product_detail?.name ?? '—'"
+            type="text"
+            disabled
+            class="w-full px-3 py-2 border rounded-md text-sm bg-muted/50 cursor-not-allowed"
+          />
+        </FormField>
+        <FormField label="Mínimo">
+          <input
+            v-model.number="stockForm.min_level"
+            type="number"
+            step="0.001"
+            required
+            class="w-full px-3 py-2 border rounded-md text-sm"
+          />
+        </FormField>
+        <FormField label="Máximo">
+          <input
+            v-model.number="stockForm.max_level"
+            type="number"
+            step="0.001"
+            required
+            class="w-full px-3 py-2 border rounded-md text-sm"
+          />
+        </FormField>
+        <div class="flex justify-end gap-3 mt-4 pt-4 border-t col-span-full">
+          <button
+            type="button"
+            class="px-4 py-2 text-sm font-medium border rounded-md hover:bg-muted"
+            @click="showStockForm = false"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            class="px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+            :disabled="stockFormLoading"
+          >
+            {{ stockFormLoading ? "Guardando..." : "Guardar" }}
+          </button>
+        </div>
+      </form>
+    </AppModal>
 
     <!-- ── Modal editar estado lote ── -->
     <AppModal
@@ -465,17 +802,37 @@ const needsDestination = (type) => ['AJUSTE_POSITIVO'].includes(type)
       <form class="grid grid-cols-1 gap-4" @submit.prevent="handleLotSubmit">
         <AppAlert v-if="lotError" type="error" :message="lotError" />
         <FormField label="Producto" class="col-span-full">
-          <input :value="editingLot?.product_detail?.name ?? '—'" type="text" disabled class="w-full px-3 py-2 border rounded-md text-sm bg-muted/50 cursor-not-allowed" />
+          <input
+            :value="editingLot?.product_detail?.name ?? '—'"
+            type="text"
+            disabled
+            class="w-full px-3 py-2 border rounded-md text-sm bg-muted/50 cursor-not-allowed"
+          />
         </FormField>
         <FormField label="Estado" class="col-span-full">
-          <select v-model="lotForm.status" class="w-full px-3 py-2 border rounded-md text-sm">
-            <option v-for="s in LOT_STATUSES" :key="s" :value="s">{{ s }}</option>
+          <select
+            v-model="lotForm.status"
+            class="w-full px-3 py-2 border rounded-md text-sm"
+          >
+            <option v-for="s in LOT_STATUSES" :key="s" :value="s">
+              {{ s }}
+            </option>
           </select>
         </FormField>
         <div class="flex justify-end gap-3 mt-4 pt-4 border-t col-span-full">
-          <button type="button" class="px-4 py-2 text-sm font-medium border rounded-md hover:bg-muted" @click="showLotForm = false">Cancelar</button>
-          <button type="submit" class="px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-md hover:bg-primary/90" :disabled="lotLoading">
-            {{ lotLoading ? 'Guardando...' : 'Guardar' }}
+          <button
+            type="button"
+            class="px-4 py-2 text-sm font-medium border rounded-md hover:bg-muted"
+            @click="showLotForm = false"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            class="px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+            :disabled="lotLoading"
+          >
+            {{ lotLoading ? "Guardando..." : "Guardar" }}
           </button>
         </div>
       </form>
@@ -488,41 +845,101 @@ const needsDestination = (type) => ['AJUSTE_POSITIVO'].includes(type)
       size="md"
       @close="showMovForm = false"
     >
-      <form class="grid grid-cols-1 md:grid-cols-2 gap-4" @submit.prevent="handleMovSubmit">
+      <form
+        class="grid grid-cols-1 md:grid-cols-2 gap-4"
+        @submit.prevent="handleMovSubmit"
+      >
         <AppAlert v-if="movError" type="error" :message="movError" />
         <FormField label="Tipo de movimiento" required class="col-span-full">
-          <select v-model="movForm.movement_type" required class="w-full px-3 py-2 border rounded-md text-sm">
-            <option v-for="t in MOV_TYPES_WRITE" :key="t.value" :value="t.value">{{ t.label }}</option>
+          <select
+            v-model="movForm.movement_type"
+            required
+            class="w-full px-3 py-2 border rounded-md text-sm"
+          >
+            <option
+              v-for="t in MOV_TYPES_WRITE"
+              :key="t.value"
+              :value="t.value"
+            >
+              {{ t.label }}
+            </option>
           </select>
         </FormField>
         <FormField label="Producto" required class="col-span-full">
-          <select v-model="movForm.product" required class="w-full px-3 py-2 border rounded-md text-sm">
+          <select
+            v-model="movForm.product"
+            required
+            class="w-full px-3 py-2 border rounded-md text-sm"
+          >
             <option value="">Seleccione...</option>
-            <option v-for="p in allProducts" :key="p.uuid" :value="p.uuid">{{ p.name }}</option>
+            <option v-for="p in allProducts" :key="p.uuid" :value="p.uuid">
+              {{ p.name }}
+            </option>
           </select>
         </FormField>
-        <FormField v-if="needsOrigin(movForm.movement_type)" label="Bodega origen" required>
-          <select v-model="movForm.warehouse_origin" required class="w-full px-3 py-2 border rounded-md text-sm">
+        <FormField
+          v-if="needsOrigin(movForm.movement_type)"
+          label="Bodega origen"
+          required
+        >
+          <select
+            v-model="movForm.warehouse_origin"
+            required
+            class="w-full px-3 py-2 border rounded-md text-sm"
+          >
             <option value="">Seleccione...</option>
-            <option v-for="w in warehouses" :key="w.uuid" :value="w.uuid">{{ w.name }}</option>
+            <option v-for="w in warehouses" :key="w.uuid" :value="w.uuid">
+              {{ w.name }}
+            </option>
           </select>
         </FormField>
-        <FormField v-if="needsDestination(movForm.movement_type)" label="Bodega destino" required>
-          <select v-model="movForm.warehouse_destination" required class="w-full px-3 py-2 border rounded-md text-sm">
+        <FormField
+          v-if="needsDestination(movForm.movement_type)"
+          label="Bodega destino"
+          required
+        >
+          <select
+            v-model="movForm.warehouse_destination"
+            required
+            class="w-full px-3 py-2 border rounded-md text-sm"
+          >
             <option value="">Seleccione...</option>
-            <option v-for="w in warehouses" :key="w.uuid" :value="w.uuid">{{ w.name }}</option>
+            <option v-for="w in warehouses" :key="w.uuid" :value="w.uuid">
+              {{ w.name }}
+            </option>
           </select>
         </FormField>
         <FormField label="Cantidad" required>
-          <input v-model="movForm.quantity" type="number" min="0.001" step="0.001" required class="w-full px-3 py-2 border rounded-md text-sm" />
+          <input
+            v-model="movForm.quantity"
+            type="number"
+            min="0.001"
+            step="0.001"
+            required
+            class="w-full px-3 py-2 border rounded-md text-sm"
+          />
         </FormField>
         <FormField label="Motivo" class="col-span-full">
-          <textarea v-model="movForm.reason" rows="2" class="w-full px-3 py-2 border rounded-md text-sm" />
+          <textarea
+            v-model="movForm.reason"
+            rows="2"
+            class="w-full px-3 py-2 border rounded-md text-sm"
+          />
         </FormField>
         <div class="flex justify-end gap-3 mt-4 pt-4 border-t col-span-full">
-          <button type="button" class="px-4 py-2 text-sm font-medium border rounded-md hover:bg-muted" @click="showMovForm = false">Cancelar</button>
-          <button type="submit" class="px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-md hover:bg-primary/90" :disabled="movLoading">
-            {{ movLoading ? 'Registrando...' : 'Registrar' }}
+          <button
+            type="button"
+            class="px-4 py-2 text-sm font-medium border rounded-md hover:bg-muted"
+            @click="showMovForm = false"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            class="px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+            :disabled="movLoading"
+          >
+            {{ movLoading ? "Registrando..." : "Registrar" }}
           </button>
         </div>
       </form>
@@ -535,34 +952,69 @@ const needsDestination = (type) => ['AJUSTE_POSITIVO'].includes(type)
       size="md"
       @close="showWarehouseForm = false"
     >
-      <form class="grid grid-cols-1 md:grid-cols-2 gap-4" @submit.prevent="handleWarehouseSubmit">
+      <form
+        class="grid grid-cols-1 md:grid-cols-2 gap-4"
+        @submit.prevent="handleWarehouseSubmit"
+      >
         <AppAlert v-if="whFormError" type="error" :message="whFormError" />
         <FormField label="Nombre" required class="col-span-full">
-          <input v-model="warehouseForm.name" type="text" required class="w-full px-3 py-2 border rounded-md text-sm" />
+          <input
+            v-model="warehouseForm.name"
+            type="text"
+            required
+            class="w-full px-3 py-2 border rounded-md text-sm"
+          />
         </FormField>
         <FormField label="Sucursal" required>
-          <select v-model="warehouseForm.branch" required class="w-full px-3 py-2 border rounded-md text-sm">
+          <select
+            v-model="warehouseForm.branch"
+            required
+            class="w-full px-3 py-2 border rounded-md text-sm"
+          >
             <option value="">Seleccionar sucursal</option>
-            <option v-for="b in allBranches" :key="b.uuid" :value="b.uuid">{{ b.name }}</option>
+            <option v-for="b in allBranches" :key="b.id" :value="b.id">
+              {{ b.name }}
+            </option>
           </select>
         </FormField>
         <FormField label="Tipo de bodega">
-          <select v-model="warehouseForm.warehouse_type" class="w-full px-3 py-2 border rounded-md text-sm">
-            <option v-for="t in WAREHOUSE_TYPES" :key="t.value" :value="t.value">{{ t.label }}</option>
+          <select
+            v-model="warehouseForm.warehouse_type"
+            class="w-full px-3 py-2 border rounded-md text-sm"
+          >
+            <option
+              v-for="t in WAREHOUSE_TYPES"
+              :key="t.value"
+              :value="t.value"
+            >
+              {{ t.label }}
+            </option>
           </select>
-        </FormField>
-        <FormField label="Descripción" class="col-span-full">
-          <textarea v-model="warehouseForm.description" rows="2" class="w-full px-3 py-2 border rounded-md text-sm" />
         </FormField>
         <div class="col-span-full">
           <label class="flex items-center gap-2 text-sm text-foreground">
-            <input v-model="warehouseForm.is_active" type="checkbox" class="rounded border-border" /> Bodega activa
+            <input
+              v-model="warehouseForm.is_active"
+              type="checkbox"
+              class="rounded border-border"
+            />
+            Bodega activa
           </label>
         </div>
         <div class="flex justify-end gap-3 mt-4 pt-4 border-t col-span-full">
-          <button type="button" class="px-4 py-2 text-sm font-medium border rounded-md hover:bg-muted" @click="showWarehouseForm = false">Cancelar</button>
-          <button type="submit" class="px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-md hover:bg-primary/90" :disabled="whFormLoading">
-            {{ whFormLoading ? 'Guardando...' : 'Guardar' }}
+          <button
+            type="button"
+            class="px-4 py-2 text-sm font-medium border rounded-md hover:bg-muted"
+            @click="showWarehouseForm = false"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            class="px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+            :disabled="whFormLoading"
+          >
+            {{ whFormLoading ? "Guardando..." : "Guardar" }}
           </button>
         </div>
       </form>
@@ -580,4 +1032,6 @@ const needsDestination = (type) => ['AJUSTE_POSITIVO'].includes(type)
     />
   </section>
 </template>
-
+", "filePath":
+"/mnt/c/Users/jimmy.gallardo/Desktop/GITHUB/MULEMED/maulemed-frontend/src/views/inventory/InventoryView.vue"
+}

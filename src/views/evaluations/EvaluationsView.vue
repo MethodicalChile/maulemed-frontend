@@ -1,355 +1,505 @@
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
-import { Plus, Pencil, Trash2, Search, ToggleLeft, ToggleRight, Eye, X,
-         Upload, ExternalLink, Copy, QrCode, MessageCircle, BarChart2, RefreshCw } from 'lucide-vue-next'
-import { evaluationsApi } from '@/api/evaluations.api'
-import { usersApi } from '@/api/users.api'
-import { useList } from '@/composables/useList'
-import { usePermissions } from '@/composables/usePermissions'
-import PageHeader from '@/components/common/PageHeader.vue'
-import AppTable from '@/components/common/AppTable.vue'
-import AppModal from '@/components/common/AppModal.vue'
-import AppAlert from '@/components/common/AppAlert.vue'
-import AppPagination from '@/components/common/AppPagination.vue'
-import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
-import FormField from '@/components/common/FormField.vue'
-import AppInput from '@/components/common/AppInput.vue'
-import AppSelect from '@/components/common/AppSelect.vue'
-import AppTextarea from '@/components/common/AppTextarea.vue'
-import StatusBadge from '@/components/common/StatusBadge.vue'
-import QRModal from '@/components/evaluations/QRModal.vue'
-import ResponsesModal from '@/components/evaluations/ResponsesModal.vue'
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { useRefresh } from "@/composables/useRefresh";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Search,
+  ToggleLeft,
+  ToggleRight,
+  Eye,
+  X,
+  Upload,
+  ExternalLink,
+  Copy,
+  QrCode,
+  MessageCircle,
+  BarChart2,
+  RefreshCw,
+} from "lucide-vue-next";
+import { evaluationsApi } from "@/api/evaluations.api";
+import { usersApi } from "@/api/users.api";
+import { useList } from "@/composables/useList";
+import { usePermissions } from "@/composables/usePermissions";
+import PageHeader from "@/components/common/PageHeader.vue";
+import AppTable from "@/components/common/AppTable.vue";
+import AppModal from "@/components/common/AppModal.vue";
+import AppAlert from "@/components/common/AppAlert.vue";
+import AppPagination from "@/components/common/AppPagination.vue";
+import ConfirmDialog from "@/components/common/ConfirmDialog.vue";
+import FormField from "@/components/common/FormField.vue";
+import AppInput from "@/components/common/AppInput.vue";
+import AppSelect from "@/components/common/AppSelect.vue";
+import AppTextarea from "@/components/common/AppTextarea.vue";
+import StatusBadge from "@/components/common/StatusBadge.vue";
+import QRModal from "@/components/evaluations/QRModal.vue";
+import ResponsesModal from "@/components/evaluations/ResponsesModal.vue";
 
-const { canManageOrganizations } = usePermissions()
-const canWrite = canManageOrganizations   // admin / gerente
+const {
+  canViewEvaluations,
+  canCreateEvaluations,
+  canEditEvaluations,
+  canDeleteEvaluations,
+} = usePermissions();
+
+const { setRefreshFunction, clearRefreshFunction } = useRefresh();
+
+async function loadAll() {
+  if (!canViewEvaluations.value) {
+    return;
+  }
+
+  questionList.load();
+  resultList.load();
+  await loadMine();
+}
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 const tabs = [
-  { key: 'questions', label: 'Preguntas' },
-  { key: 'results',   label: 'Resultados' },
-  { key: 'mine',      label: 'Mis evaluaciones' },
-]
-const activeTab = ref('questions')
+  { key: "questions", label: "Preguntas" },
+  { key: "results", label: "Resultados" },
+  { key: "mine", label: "Mis evaluaciones" },
+];
+const activeTab = ref("questions");
 
 // ── Usuarios (para resultados) ────────────────────────────────────────────────
-const allUsers = ref([])
+const allUsers = ref([]);
 
 onMounted(async () => {
-  questionList.load()
-  resultList.load()
-  loadMine()
-  const res = await usersApi.listUsers().catch(() => null)
+  await loadAll();
+  setRefreshFunction(loadAll);
+  const res = await usersApi.listUsers().catch(() => null);
   if (res) {
-    const d = res.data?.data ?? res.data
-    allUsers.value = Array.isArray(d) ? d : d.results ?? d
+    const d = res.data?.data ?? res.data;
+    allUsers.value = Array.isArray(d) ? d : (d.results ?? d);
   }
-})
+});
+
+onUnmounted(clearRefreshFunction);
 
 const QUESTION_COLS = [
-  { key: 'title',          label: 'Título / descripción' },
-  { key: 'question_count', label: 'N° preguntas', width: '100px' },
-  { key: 'is_active',      label: 'Estado',       width: '90px' },
-  { key: 'google_status',  label: 'Google Forms', width: '120px' },
-  { key: 'created_at',     label: 'Creado',       width: '100px' },
-  { key: 'actions',        label: '',             width: '200px' },
-]
+  { key: "title", label: "Título / descripción" },
+  { key: "question_count", label: "N° preguntas", width: "100px" },
+  { key: "is_active", label: "Estado", width: "90px" },
+  { key: "google_status", label: "Google Forms", width: "120px" },
+  { key: "created_at", label: "Creado", width: "100px" },
+  { key: "actions", label: "", width: "200px" },
+];
 
-const questionList = useList(evaluationsApi.listForms)
+const questionList = useList(evaluationsApi.listForms);
 
 // Debounce en la búsqueda de formularios (sin necesitar Enter)
-let _searchTimer = null
-watch(() => questionList.params.search, () => {
-  clearTimeout(_searchTimer)
-  _searchTimer = setTimeout(() => {
-    questionList.pagination.page = 1
-    questionList.load()
-  }, 350)
-}, { flush: 'sync' })
+let _searchTimer = null;
+watch(
+  () => questionList.params.search,
+  () => {
+    clearTimeout(_searchTimer);
+    _searchTimer = setTimeout(() => {
+      questionList.pagination.page = 1;
+      questionList.load();
+    }, 350);
+  },
+  { flush: "sync" },
+);
 
 // Alias para que el resto del código que llama loadQuestions() siga funcionando
-function loadQuestions() { questionList.load() }
+function loadQuestions() {
+  questionList.load();
+}
 
 // Modal formulario (banco de preguntas)
-const showFormModal    = ref(false)
-const editingForm      = ref(null)
-const deleteFormTarget = ref(null)
-const deleteFormLoad   = ref(false)
-const formError        = ref('')
-const formLoading      = ref(false)
-const formData         = ref({ title: '', description: '', is_active: true })
+const showFormModal = ref(false);
+const showDetailModal = ref(false);
+const editingForm = ref(null);
+const deleteFormTarget = ref(null);
+const deleteFormLoad = ref(false);
+const formError = ref("");
+const formLoading = ref(false);
+const formData = ref({ title: "", description: "", is_active: true });
+
+const canSaveCurrentForm = computed(() =>
+  editingForm.value
+    ? canEditEvaluations.value
+    : canCreateEvaluations.value,
+);
+
+function canEditQuestion(q) {
+  return q?.uuid
+    ? canEditEvaluations.value
+    : canCreateEvaluations.value;
+}
+
+function canRemoveQuestion(q) {
+  return q?.uuid
+    ? canDeleteEvaluations.value
+    : canCreateEvaluations.value;
+}
 
 // Preguntas del formulario editado
-const formQuestions = ref([])
-let _qKey = 0
+const formQuestions = ref([]);
+let _qKey = 0;
 
 const QUESTION_TYPES = [
-  { value: 'TEXT',     label: 'Texto libre' },
-  { value: 'RATING',   label: 'Puntuación (1–N)' },
-  { value: 'MULTIPLE', label: 'Selección múltiple' },
-  { value: 'SINGLE',   label: 'Selección única' },
-  { value: 'BOOLEAN',  label: 'Sí / No' },
-  { value: 'DATE',     label: 'Fecha' },
-]
+  { value: "TEXT", label: "Texto libre" },
+  { value: "RATING", label: "Puntuación (1–N)" },
+  { value: "MULTIPLE", label: "Selección múltiple" },
+  { value: "SINGLE", label: "Selección única" },
+  { value: "BOOLEAN", label: "Sí / No" },
+  { value: "DATE", label: "Fecha" },
+];
 
 function newQ() {
   return {
-    _key: ++_qKey, uuid: null, _deleted: false,
-    question_text: '', question_type: 'TEXT',
-    rating_max: 5, options: '', is_required: true,
-    order: formQuestions.value.filter(q => !q._deleted).length + 1,
-  }
+    _key: ++_qKey,
+    uuid: null,
+    _deleted: false,
+    question_text: "",
+    question_type: "TEXT",
+    rating_max: 5,
+    options: "",
+    is_required: true,
+    order: formQuestions.value.filter((q) => !q._deleted).length + 1,
+  };
 }
 
-const visibleQs = computed(() => formQuestions.value.filter(q => !q._deleted))
+const visibleQs = computed(() =>
+  formQuestions.value.filter((q) => !q._deleted),
+);
 
 function removeQ(q) {
-  if (q.uuid) q._deleted = true
-  else formQuestions.value = formQuestions.value.filter(x => x._key !== q._key)
+  if (q.uuid) q._deleted = true;
+  else
+    formQuestions.value = formQuestions.value.filter((x) => x._key !== q._key);
 }
 
 async function openCreateForm() {
-  editingForm.value = null
-  formError.value   = ''
-  formData.value    = { title: '', description: '', is_active: true }
-  formQuestions.value = []
-  showFormModal.value = true
+  if (!canCreateEvaluations.value) {
+    return;
+  }
+
+  editingForm.value = null;
+  formError.value = "";
+  formData.value = { title: "", description: "", is_active: true };
+  formQuestions.value = [];
+  showFormModal.value = true;
 }
 
 async function openEditForm(row) {
-  editingForm.value = row
-  formError.value   = ''
-  formData.value    = {
-    title: row.title, description: row.description ?? '',
-    is_active: row.is_active,
+  if (!canEditEvaluations.value) {
+    return;
   }
+
+  editingForm.value = row;
+  formError.value = "";
+  formData.value = {
+    title: row.title,
+    description: row.description ?? "",
+    is_active: row.is_active,
+  };
   try {
-    const res = await evaluationsApi.getFormQuestions(row.uuid)
-    const qs  = res.data?.data ?? res.data
-    const list = Array.isArray(qs) ? qs : qs.results ?? qs
-    formQuestions.value = list.map(q => ({
-      _key: ++_qKey, uuid: q.uuid, _deleted: false,
-      question_text: q.question_text, question_type: q.question_type,
+    const res = await evaluationsApi.getFormQuestions(row.uuid);
+    const qs = res.data?.data ?? res.data;
+    const list = Array.isArray(qs) ? qs : (qs.results ?? qs);
+    formQuestions.value = list.map((q) => ({
+      _key: ++_qKey,
+      uuid: q.uuid,
+      _deleted: false,
+      question_text: q.question_text,
+      question_type: q.question_type,
       rating_max: q.rating_max ?? 5,
-      options: Array.isArray(q.options) ? q.options.join('\n') : '',
-      is_required: q.is_required, order: q.order,
-    }))
-  } catch { formQuestions.value = [] }
-  showFormModal.value = true
+      options: Array.isArray(q.options) ? q.options.join("\n") : "",
+      is_required: q.is_required,
+      order: q.order,
+    }));
+  } catch {
+    formQuestions.value = [];
+  }
+  showFormModal.value = true;
 }
 
 async function handleFormSubmit() {
-  formError.value   = ''
-  formLoading.value = true
+  if (!canSaveCurrentForm.value) {
+    formError.value = "No tienes permiso para guardar este formulario.";
+    return;
+  }
+
+  formError.value = "";
+  formLoading.value = true;
+
   try {
-    let uuid = editingForm.value?.uuid
+    let uuid = editingForm.value?.uuid;
     if (uuid) {
-      await evaluationsApi.updateForm(uuid, formData.value)
+      await evaluationsApi.updateForm(uuid, formData.value);
     } else {
-      const res = await evaluationsApi.createForm(formData.value)
-      uuid = res.data?.data?.uuid ?? res.data?.uuid
+      const res = await evaluationsApi.createForm(formData.value);
+      uuid = res.data?.data?.uuid ?? res.data?.uuid;
     }
-    if (uuid) await syncQuestions(uuid)
-    showFormModal.value = false
-    loadQuestions()
+    if (uuid) await syncQuestions(uuid);
+    showFormModal.value = false;
+    loadQuestions();
   } catch (err) {
-    const d = err.response?.data
-    formError.value = d?.message ?? d?.detail ?? 'Error al guardar.'
+    const d = err.response?.data;
+    formError.value = d?.message ?? d?.detail ?? "Error al guardar.";
   } finally {
-    formLoading.value = false
+    formLoading.value = false;
   }
 }
 
 async function syncQuestions(formUuid) {
-  const ops = formQuestions.value.map(q => {
-    if (q._deleted && q.uuid)
-      return evaluationsApi.deleteQuestion(q.uuid).catch(() => null)
+  const ops = formQuestions.value.map((q) => {
+    if (q._deleted && q.uuid) {
+      if (!canDeleteEvaluations.value) {
+        return Promise.resolve();
+      }
+
+      return evaluationsApi.deleteQuestion(q.uuid).catch(() => null);
+    }
+
     if (!q._deleted) {
       const p = {
         evaluation_form: formUuid,
-        question_text: q.question_text, question_type: q.question_type,
+        question_text: q.question_text,
+        question_type: q.question_type,
         rating_max: q.rating_max || 5,
         options: q.options
-          ? q.options.split('\n').map(s => s.trim()).filter(Boolean)
+          ? q.options
+              .split("\n")
+              .map((s) => s.trim())
+              .filter(Boolean)
           : null,
-        is_required: q.is_required, order: q.order,
+        is_required: q.is_required,
+        order: q.order,
+      };
+      if (q.uuid) {
+        if (!canEditEvaluations.value) {
+          return Promise.resolve();
+        }
+
+        return evaluationsApi.updateQuestion(q.uuid, p).catch(() => null);
       }
-      if (q.uuid) return evaluationsApi.updateQuestion(q.uuid, p).catch(() => null)
-      return evaluationsApi.createQuestion(p).catch(() => null)
+
+      if (!canCreateEvaluations.value) {
+        return Promise.resolve();
+      }
+
+      return evaluationsApi.createQuestion(p).catch(() => null);
     }
-    return Promise.resolve()
-  })
-  await Promise.all(ops)
+
+    return Promise.resolve();
+  });
+  await Promise.all(ops);
 }
 
 async function toggleActive(row) {
-  await evaluationsApi.toggleActive(row.uuid).catch(() => null)
-  loadQuestions()
+  if (!canEditEvaluations.value) {
+    return;
+  }
+
+  await evaluationsApi.toggleActive(row.uuid).catch(() => null);
+  loadQuestions();
 }
 
 async function confirmDeleteForm() {
-  deleteFormLoad.value = true
+  if (!canDeleteEvaluations.value || !deleteFormTarget.value) {
+    return;
+  }
+
+  deleteFormLoad.value = true;
   try {
-    await evaluationsApi.deleteForm(deleteFormTarget.value.uuid)
-    deleteFormTarget.value = null
-    loadQuestions()
-  } finally { deleteFormLoad.value = false }
+    await evaluationsApi.deleteForm(deleteFormTarget.value.uuid);
+    deleteFormTarget.value = null;
+    loadQuestions();
+  } finally {
+    deleteFormLoad.value = false;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GOOGLE FORMS — publicar, QR, copiar, WhatsApp
 // ─────────────────────────────────────────────────────────────────────────────
 
-const publishingUuid      = ref(null)   // UUID de la fila en proceso de publicación
-const publishError        = ref('')
-const confirmPublishRow   = ref(null)   // fila pendiente de confirmación
-const resyncingUuid       = ref(null)   // UUID de la fila re-sincronizando
-const confirmResyncRow    = ref(null)   // fila pendiente de confirmación re-sync
-const showQRModal         = ref(false)
-const qrTargetForm        = ref(null)
-const copySuccessUuid     = ref(null)
-const showResponsesModal  = ref(false)
-const responsesTargetForm = ref(null)
+const publishingUuid = ref(null); // UUID de la fila en proceso de publicación
+const publishError = ref("");
+const confirmPublishRow = ref(null); // fila pendiente de confirmación
+const resyncingUuid = ref(null); // UUID de la fila re-sincronizando
+const confirmResyncRow = ref(null); // fila pendiente de confirmación re-sync
+const showQRModal = ref(false);
+const qrTargetForm = ref(null);
+const copySuccessUuid = ref(null);
+const showResponsesModal = ref(false);
+const responsesTargetForm = ref(null);
 
 function openResponses(row) {
-  responsesTargetForm.value = row
-  showResponsesModal.value  = true
+  responsesTargetForm.value = row;
+  showResponsesModal.value = true;
 }
 
 const GOOGLE_STATUS_LABELS = {
-  NOT_SYNCED: 'Sin publicar',
-  SYNCING:    'Publicando',
-  SYNCED:     'Publicado',
-  ERROR:      'Error',
-}
+  NOT_SYNCED: "Sin publicar",
+  SYNCING: "Publicando",
+  SYNCED: "Publicado",
+  ERROR: "Error",
+};
 const GOOGLE_STATUS_COLORS = {
-  NOT_SYNCED: 'neutral',
-  SYNCING:    'blue',
-  SYNCED:     'green',
-  ERROR:      'red',
-}
+  NOT_SYNCED: "neutral",
+  SYNCING: "blue",
+  SYNCED: "green",
+  ERROR: "red",
+};
 
 function googleStatusLabel(status) {
-  return GOOGLE_STATUS_LABELS[status] ?? status
+  return GOOGLE_STATUS_LABELS[status] ?? status;
 }
 function googleStatusColor(status) {
-  return GOOGLE_STATUS_COLORS[status] ?? 'neutral'
+  return GOOGLE_STATUS_COLORS[status] ?? "neutral";
 }
 
 function requestPublish(row) {
-  publishError.value   = ''
-  confirmPublishRow.value = row
+  if (!canEditEvaluations.value) {
+    return;
+  }
+
+  publishError.value = "";
+  confirmPublishRow.value = row;
 }
 
 async function confirmPublish() {
-  const row = confirmPublishRow.value
-  confirmPublishRow.value = null
-  if (!row) return
+  if (!canEditEvaluations.value) {
+    confirmPublishRow.value = null;
+    return;
+  }
 
-  publishingUuid.value = row.uuid
-  publishError.value   = ''
+  const row = confirmPublishRow.value;
+  confirmPublishRow.value = null;
+  if (!row) return;
+
+  publishingUuid.value = row.uuid;
+  publishError.value = "";
   try {
-    const res  = await evaluationsApi.publishGoogleForm(row.uuid)
-    const data = res.data?.data ?? res.data
+    const res = await evaluationsApi.publishGoogleForm(row.uuid);
+    const data = res.data?.data ?? res.data;
     // Actualizar la fila en la lista local sin recargar todo
-    const idx = questionList.items.value.findIndex(f => f.uuid === row.uuid)
+    const idx = questionList.items.value.findIndex((f) => f.uuid === row.uuid);
     if (idx !== -1) {
       questionList.items.value[idx] = {
         ...questionList.items.value[idx],
-        google_form_id:       data.google_form_id,
-        google_form_url:      data.google_form_url,
+        google_form_id: data.google_form_id,
+        google_form_url: data.google_form_url,
         google_form_edit_url: data.google_form_edit_url,
-        google_sync_status:   data.google_sync_status,
-        google_synced_at:     data.google_synced_at,
+        google_sync_status: data.google_sync_status,
+        google_synced_at: data.google_synced_at,
         is_published_in_google: true,
-      }
+      };
     }
   } catch (err) {
-    publishError.value = err.response?.data?.message ?? 'Error al publicar en Google Forms.'
+    publishError.value =
+      err.response?.data?.message ?? "Error al publicar en Google Forms.";
   } finally {
-    publishingUuid.value = null
+    publishingUuid.value = null;
   }
 }
 
 function requestResync(row) {
-  confirmResyncRow.value = row
+  if (!canEditEvaluations.value) {
+    return;
+  }
+
+  confirmResyncRow.value = row;
 }
 
 async function confirmResync() {
-  const row = confirmResyncRow.value
-  confirmResyncRow.value = null
-  if (!row) return
+  if (!canEditEvaluations.value) {
+    confirmResyncRow.value = null;
+    return;
+  }
 
-  resyncingUuid.value = row.uuid
-  publishError.value  = ''
+  const row = confirmResyncRow.value;
+  confirmResyncRow.value = null;
+  if (!row) return;
+
+  resyncingUuid.value = row.uuid;
+  publishError.value = "";
   try {
-    const res  = await evaluationsApi.resyncGoogleForm(row.uuid)
-    const data = res.data?.data ?? res.data
-    const idx  = questionList.items.value.findIndex(f => f.uuid === row.uuid)
+    const res = await evaluationsApi.resyncGoogleForm(row.uuid);
+    const data = res.data?.data ?? res.data;
+    const idx = questionList.items.value.findIndex((f) => f.uuid === row.uuid);
     if (idx !== -1) {
       questionList.items.value[idx] = {
         ...questionList.items.value[idx],
-        google_form_url:      data.google_form_url,
+        google_form_url: data.google_form_url,
         google_form_edit_url: data.google_form_edit_url,
-        google_sync_status:   data.google_sync_status,
-        google_synced_at:     data.google_synced_at,
-      }
+        google_sync_status: data.google_sync_status,
+        google_synced_at: data.google_synced_at,
+      };
     }
   } catch (err) {
-    publishError.value = err.response?.data?.message ?? 'Error al re-sincronizar con Google Forms.'
+    publishError.value =
+      err.response?.data?.message ??
+      "Error al re-sincronizar con Google Forms.";
   } finally {
-    resyncingUuid.value = null
+    resyncingUuid.value = null;
   }
 }
 
 function openFormInBrowser(row) {
-  window.open(row.google_form_url, '_blank', 'noopener')
+  window.open(row.google_form_url, "_blank", "noopener");
 }
 
 function openFormEdit(row) {
-  window.open(row.google_form_edit_url, '_blank', 'noopener')
+  window.open(row.google_form_edit_url, "_blank", "noopener");
 }
 
 async function copyFormLink(row) {
-  const url = row.google_form_url
+  const url = row.google_form_url;
   try {
     if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(url)
+      await navigator.clipboard.writeText(url);
     } else {
-      const ta = document.createElement('textarea')
-      ta.value = url
-      ta.style.cssText = 'position:fixed;opacity:0'
-      document.body.appendChild(ta)
-      ta.focus(); ta.select()
-      document.execCommand('copy')
-      document.body.removeChild(ta)
+      const ta = document.createElement("textarea");
+      ta.value = url;
+      ta.style.cssText = "position:fixed;opacity:0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
     }
-    copySuccessUuid.value = row.uuid
-    setTimeout(() => { copySuccessUuid.value = null }, 2000)
-  } catch { /* silencioso */ }
+    copySuccessUuid.value = row.uuid;
+    setTimeout(() => {
+      copySuccessUuid.value = null;
+    }, 2000);
+  } catch {
+    /* silencioso */
+  }
 }
 
 function shareWhatsApp(row) {
-  const msg = `Hola, te invitamos a responder el formulario "${row.title}":\n${row.google_form_url}`
-  window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank', 'noopener')
+  const msg = `Hola, te invitamos a responder el formulario "${row.title}":\n${row.google_form_url}`;
+  window.open(
+    `https://wa.me/?text=${encodeURIComponent(msg)}`,
+    "_blank",
+    "noopener",
+  );
 }
 
 function openQR(row) {
-  qrTargetForm.value = row
-  showQRModal.value  = true
+  qrTargetForm.value = row;
+  showQRModal.value = true;
 }
 
 // Modal detalle de preguntas (solo ver)
-const detailForm      = ref(null)
-const detailQuestions = ref([])
+const detailForm = ref(null);
+const detailQuestions = ref([]);
 
 async function openDetail(row) {
-  detailForm.value = row
-  const res = await evaluationsApi.getFormQuestions(row.uuid).catch(() => null)
+  detailForm.value = row;
+  const res = await evaluationsApi.getFormQuestions(row.uuid).catch(() => null);
   if (res) {
-    const d = res.data?.data ?? res.data
-    detailQuestions.value = Array.isArray(d) ? d : d.results ?? d
+    const d = res.data?.data ?? res.data;
+    detailQuestions.value = Array.isArray(d) ? d : (d.results ?? d);
   }
-  showDetailModal.value = true
+  showDetailModal.value = true;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -357,33 +507,35 @@ async function openDetail(row) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const RESULT_COLS = [
-  { key: 'user',       label: 'Usuario evaluado' },
-  { key: 'form',       label: 'Formulario' },
-  { key: 'status',     label: 'Estado',   width: '120px' },
-  { key: 'score',      label: 'Puntaje',  width: '80px' },
-  { key: 'source',     label: 'Origen',   width: '110px' },
-  { key: 'completed',  label: 'Completado', width: '120px' },
-  { key: 'actions',    label: '',         width: '60px' },
-]
+  { key: "user", label: "Usuario evaluado" },
+  { key: "form", label: "Formulario" },
+  { key: "status", label: "Estado", width: "120px" },
+  { key: "score", label: "Puntaje", width: "80px" },
+  { key: "source", label: "Origen", width: "110px" },
+  { key: "completed", label: "Completado", width: "120px" },
+  { key: "actions", label: "", width: "60px" },
+];
 
-const resultList = useList(evaluationsApi.listEvaluations)
+const resultList = useList(evaluationsApi.listEvaluations);
 
-function loadResults() { resultList.load() }
+function loadResults() {
+  resultList.load();
+}
 
 // Modal detalle resultado (ver respuestas completas)
-const showResultModal = ref(false)
-const detailEval      = ref(null)
+const showResultModal = ref(false);
+const detailEval = ref(null);
 
 async function openResult(row) {
-  const res = await evaluationsApi.getEvaluation(row.uuid).catch(() => null)
-  detailEval.value = res ? (res.data?.data ?? res.data) : row
-  showResultModal.value = true
+  const res = await evaluationsApi.getEvaluation(row.uuid).catch(() => null);
+  detailEval.value = res ? (res.data?.data ?? res.data) : row;
+  showResultModal.value = true;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmtDate(val) {
-  if (!val) return '—'
-  return new Date(val).toLocaleDateString('es-CL')
+  if (!val) return "—";
+  return new Date(val).toLocaleDateString("es-CL");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -392,62 +544,67 @@ function fmtDate(val) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const MINE_COLS = [
-  { key: 'form',       label: 'Formulario' },
-  { key: 'status',     label: 'Estado',     width: '120px' },
-  { key: 'due_date',   label: 'Vence',      width: '110px' },
-  { key: 'score',      label: 'Puntaje',    width: '80px' },
-  { key: 'actions',    label: '',           width: '60px' },
-]
+  { key: "form", label: "Formulario" },
+  { key: "status", label: "Estado", width: "120px" },
+  { key: "due_date", label: "Vence", width: "110px" },
+  { key: "score", label: "Puntaje", width: "80px" },
+  { key: "actions", label: "", width: "60px" },
+];
 
-const mineItems   = ref([])
-const mineLoading = ref(false)
-const mineError   = ref('')
+const mineItems = ref([]);
+const mineLoading = ref(false);
+const mineError = ref("");
 
 async function loadMine() {
-  mineLoading.value = true
-  mineError.value   = ''
+  mineLoading.value = true;
+  mineError.value = "";
   try {
-    const res = await evaluationsApi.myEvaluations()
-    const d = res.data?.data ?? res.data
-    mineItems.value = Array.isArray(d) ? d : d.results ?? d
+    const res = await evaluationsApi.myEvaluations();
+    const d = res.data?.data ?? res.data;
+    mineItems.value = Array.isArray(d) ? d : (d.results ?? d);
   } catch (err) {
-    mineError.value = err.response?.data?.message ?? 'Error al cargar mis evaluaciones.'
+    mineError.value =
+      err.response?.data?.message ?? "Error al cargar mis evaluaciones.";
   } finally {
-    mineLoading.value = false
+    mineLoading.value = false;
   }
 }
 
 // Modal para responder una evaluación
-const showAnswerModal  = ref(false)
-const answeringEval    = ref(null)
-const answerQuestions  = ref([])   // preguntas del formulario
-const answers          = ref({})   // { question_uuid: { text, rating, options } }
-const answerLoading    = ref(false)
-const answerError      = ref('')
-const answerSuccess    = ref(false)
+const showAnswerModal = ref(false);
+const answeringEval = ref(null);
+const answerQuestions = ref([]); // preguntas del formulario
+const answers = ref({}); // { question_uuid: { text, rating, options } }
+const answerLoading = ref(false);
+const answerError = ref("");
+const answerSuccess = ref(false);
 
 async function openAnswerModal(evalRow) {
-  answeringEval.value = evalRow
-  answerError.value   = ''
-  answerSuccess.value = false
-  answers.value       = {}
-  answerQuestions.value = []
-  showAnswerModal.value = true
+  answeringEval.value = evalRow;
+  answerError.value = "";
+  answerSuccess.value = false;
+  answers.value = {};
+  answerQuestions.value = [];
+  showAnswerModal.value = true;
 
   try {
-    const res = await evaluationsApi.getFormQuestions(evalRow.evaluation_form_detail?.uuid ?? evalRow.evaluation_form)
-    const d = res.data?.data ?? res.data
-    answerQuestions.value = Array.isArray(d) ? d : d.results ?? d
+    const res = await evaluationsApi.getFormQuestions(
+      evalRow.evaluation_form_detail?.uuid ?? evalRow.evaluation_form,
+    );
+    const d = res.data?.data ?? res.data;
+    answerQuestions.value = Array.isArray(d) ? d : (d.results ?? d);
     // Prefill si ya tiene respuestas
-    const evalFull = await evaluationsApi.getEvaluation(evalRow.uuid).catch(() => null)
+    const evalFull = await evaluationsApi
+      .getEvaluation(evalRow.uuid)
+      .catch(() => null);
     if (evalFull) {
-      const full = evalFull.data?.data ?? evalFull.data
-      for (const ans of (full.answers ?? [])) {
+      const full = evalFull.data?.data ?? evalFull.data;
+      for (const ans of full.answers ?? []) {
         answers.value[ans.question_detail?.uuid ?? ans.question] = {
-          text:    ans.answer_text    ?? '',
-          rating:  ans.answer_rating  ?? null,
+          text: ans.answer_text ?? "",
+          rating: ans.answer_rating ?? null,
           options: ans.answer_options ?? [],
-        }
+        };
       }
     }
   } catch {
@@ -456,37 +613,42 @@ async function openAnswerModal(evalRow) {
 }
 
 function getAnswer(qUuid) {
-  if (!answers.value[qUuid]) answers.value[qUuid] = { text: '', rating: null, options: [] }
-  return answers.value[qUuid]
+  if (!answers.value[qUuid])
+    answers.value[qUuid] = { text: "", rating: null, options: [] };
+  return answers.value[qUuid];
 }
 
 function toggleOption(qUuid, opt) {
-  const ans = getAnswer(qUuid)
-  if (ans.options.includes(opt)) ans.options = ans.options.filter(o => o !== opt)
-  else ans.options.push(opt)
+  const ans = getAnswer(qUuid);
+  if (ans.options.includes(opt))
+    ans.options = ans.options.filter((o) => o !== opt);
+  else ans.options.push(opt);
 }
 
 async function submitMyEvaluation() {
-  if (!answeringEval.value) return
-  answerLoading.value = true
-  answerError.value   = ''
+  if (!answeringEval.value) return;
+  answerLoading.value = true;
+  answerError.value = "";
   try {
-    const answersPayload = answerQuestions.value.map(q => {
-      const ans = answers.value[q.uuid] ?? {}
+    const answersPayload = answerQuestions.value.map((q) => {
+      const ans = answers.value[q.uuid] ?? {};
       return {
         question: q.uuid,
-        answer_text:    ans.text    || null,
-        answer_rating:  ans.rating  || null,
+        answer_text: ans.text || null,
+        answer_rating: ans.rating || null,
         answer_options: ans.options?.length ? ans.options : null,
-      }
-    })
-    await evaluationsApi.submitEvaluation(answeringEval.value.uuid, { answers: answersPayload })
-    answerSuccess.value = true
-    loadMine()
+      };
+    });
+    await evaluationsApi.submitEvaluation(answeringEval.value.uuid, {
+      answers: answersPayload,
+    });
+    answerSuccess.value = true;
+    loadMine();
   } catch (err) {
-    answerError.value = err.response?.data?.message ?? 'Error al enviar la evaluación.'
+    answerError.value =
+      err.response?.data?.message ?? "Error al enviar la evaluación.";
   } finally {
-    answerLoading.value = false
+    answerLoading.value = false;
   }
 }
 </script>
@@ -494,13 +656,19 @@ async function submitMyEvaluation() {
 <template>
   <section class="page">
     <PageHeader
-      :title="activeTab === 'questions' ? 'Preguntas de evaluación' : 'Resultados de evaluación'"
-      :subtitle="activeTab === 'questions'
-        ? 'Administra los formularios y bancos de preguntas enviados por WhatsApp'
-        : 'Resultados recibidos desde la API externa de WhatsApp'"
+      :title="
+        activeTab === 'questions'
+          ? 'Preguntas de evaluación'
+          : 'Resultados de evaluación'
+      "
+      :subtitle="
+        activeTab === 'questions'
+          ? 'Administra los formularios y bancos de preguntas enviados por WhatsApp'
+          : 'Resultados recibidos desde la API externa de WhatsApp'
+      "
     >
       <button
-        v-if="canWrite && activeTab === 'questions'"
+        v-if="canCreateEvaluations && activeTab === 'questions'"
         class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-primary-foreground bg-primary rounded-md hover:bg-primary/90"
         @click="openCreateForm"
       >
@@ -509,12 +677,24 @@ async function submitMyEvaluation() {
     </PageHeader>
 
     <!-- ── TABS ── -->
-    <div class="tab-bar">
+    <div class="flex border-b border-border mb-6">
       <button
         v-for="tab in tabs"
         :key="tab.key"
-        :class="['tab-btn', { active: activeTab === tab.key }]"
-        @click="activeTab = tab.key; tab.key === 'questions' ? loadQuestions() : tab.key === 'results' ? loadResults() : loadMine()"
+        :class="[
+          'px-4 py-2 text-sm font-semibold border-b-2 transition-colors',
+          activeTab === tab.key
+            ? 'text-primary border-primary'
+            : 'text-muted-foreground hover:text-foreground border-transparent',
+        ]"
+        @click="
+          activeTab = tab.key;
+          tab.key === 'questions'
+            ? loadQuestions()
+            : tab.key === 'results'
+              ? loadResults()
+              : loadMine();
+        "
       >
         {{ tab.label }}
       </button>
@@ -524,44 +704,70 @@ async function submitMyEvaluation() {
          TAB: PREGUNTAS
          ════════════════════════════════════════════════════════════════ -->
     <template v-if="activeTab === 'questions'">
-
-      <div class="filters-row">
-        <div class="search-input">
-          <Search :size="16" />
+      <div class="flex items-center gap-4 mb-6">
+        <div class="relative w-full md:w-64">
+          <Search
+            :size="16"
+            class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+          />
           <input
             :value="questionList.params.search"
             type="text"
             placeholder="Buscar formulario..."
+            class="w-full pl-10 pr-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
             @input="questionList.setParam('search', $event.target.value)"
           />
         </div>
       </div>
 
-      <AppAlert v-if="questionList.error.value" type="error" :message="questionList.error.value" />
+      <AppAlert
+        v-if="questionList.error.value"
+        type="error"
+        :message="questionList.error.value"
+      />
 
-      <AppTable :columns="QUESTION_COLS" :rows="questionList.items.value" :loading="questionList.loading.value"
-        empty-message="No hay formularios creados. Crea uno con el botón de arriba.">
-
+      <AppTable
+        :columns="QUESTION_COLS"
+        :rows="questionList.items.value"
+        :loading="questionList.loading.value"
+        empty-message="No hay formularios creados. Crea uno con el botón de arriba."
+      >
         <template #title="{ row }">
           <div>
             <strong>{{ row.title }}</strong>
-            <span v-if="row.description" class="row-subtitle">{{ row.description }}</span>
+            <span v-if="row.description" class="row-subtitle">{{
+              row.description
+            }}</span>
           </div>
         </template>
 
         <template #is_active="{ row }">
-          <span :class="['badge', row.is_active ? 'badge--green' : 'badge--neutral']">
-            {{ row.is_active ? 'Activo' : 'Inactivo' }}
+          <span
+            :class="[
+              'badge',
+              row.is_active ? 'badge--green' : 'badge--neutral',
+            ]"
+          >
+            {{ row.is_active ? "Activo" : "Inactivo" }}
           </span>
         </template>
 
         <!-- Columna estado Google Forms -->
         <template #google_status="{ row }">
-          <span :class="['badge', `badge--${googleStatusColor(row.google_sync_status)}`]">
+          <span
+            :class="[
+              'badge',
+              `badge--${googleStatusColor(row.google_sync_status)}`,
+            ]"
+          >
             {{ googleStatusLabel(row.google_sync_status) }}
           </span>
-          <div v-if="row.google_sync_status === 'ERROR'" class="google-error-hint">
-            {{ row.google_sync_error?.slice(0, 60) }}{{ row.google_sync_error?.length > 60 ? '…' : '' }}
+          <div
+            v-if="row.google_sync_status === 'ERROR'"
+            class="google-error-hint"
+          >
+            {{ row.google_sync_error?.slice(0, 60)
+            }}{{ row.google_sync_error?.length > 60 ? "…" : "" }}
           </div>
         </template>
 
@@ -570,53 +776,72 @@ async function submitMyEvaluation() {
         </template>
 
         <template #actions="{ row }">
-          <div class="row-actions">
+          <div class="flex gap-2">
             <!-- Ver preguntas (siempre) -->
-            <button class="icon-btn" title="Ver preguntas" @click="openDetail(row)">
-              <Eye :size="14" />
+            <button
+              v-if="canViewEvaluations"
+              class="p-1 rounded hover:bg-muted"
+              title="Ver preguntas"
+              @click="openDetail(row)"
+            >
+              <Eye :size="16" />
             </button>
 
             <!-- Editar (bloqueado si ya está publicado) -->
             <button
-              v-if="canWrite"
-              class="icon-btn"
-              :title="row.is_published_in_google ? 'Formulario publicado — editar solo descripción' : 'Editar'"
+              v-if="canEditEvaluations"
+              class="p-1 rounded hover:bg-muted"
+              :title="
+                row.is_published_in_google
+                  ? 'Formulario publicado — editar solo descripción'
+                  : 'Editar'
+              "
               @click="openEditForm(row)"
             >
-              <Pencil :size="14" />
+              <Pencil :size="16" />
             </button>
 
             <!-- Toggle activo -->
             <button
-              v-if="canWrite"
-              :class="['icon-btn', row.is_active ? 'icon-btn--danger' : '']"
+              v-if="canEditEvaluations"
+              :class="[
+                'p-1 rounded hover:bg-muted',
+                row.is_active ? 'text-destructive' : '',
+              ]"
               :title="row.is_active ? 'Desactivar' : 'Activar'"
               @click="toggleActive(row)"
             >
-              <component :is="row.is_active ? ToggleRight : ToggleLeft" :size="14" />
+              <component
+                :is="row.is_active ? ToggleRight : ToggleLeft"
+                :size="16"
+              />
             </button>
 
             <!-- Eliminar -->
             <button
-              v-if="canWrite"
-              class="icon-btn icon-btn--danger"
-              title="Eliminar"
+              v-if="canDeleteEvaluations"
+              class="p-1 rounded hover:bg-muted text-destructive"
+              title="Eliminar formulario"
               @click="deleteFormTarget = row"
             >
-              <Trash2 :size="14" />
+              <Trash2 :size="16" />
             </button>
 
             <!-- ── Acciones Google Forms ── -->
 
             <!-- Publicar (solo si NO está publicado y NO está sincronizando) -->
             <button
-              v-if="canWrite && !row.is_published_in_google && row.google_sync_status !== 'SYNCING'"
-              class="icon-btn"
+              v-if="
+                canEditEvaluations &&
+                !row.is_published_in_google &&
+                row.google_sync_status !== 'SYNCING'
+              "
+              class="p-1 rounded hover:bg-muted"
               :disabled="publishingUuid === row.uuid"
               title="Publicar en Google Forms"
               @click="requestPublish(row)"
             >
-              <Upload v-if="publishingUuid !== row.uuid" :size="14" />
+              <Upload v-if="publishingUuid !== row.uuid" :size="16" />
               <span v-else class="mini-spinner" />
             </button>
 
@@ -626,76 +851,76 @@ async function submitMyEvaluation() {
               :href="row.google_form_url"
               target="_blank"
               rel="noopener noreferrer"
-              class="icon-btn"
+              class="p-1 rounded hover:bg-muted"
               title="Abrir formulario"
             >
-              <ExternalLink :size="14" />
+              <ExternalLink :size="16" />
             </a>
 
             <!-- Abrir edición (solo si publicado) -->
             <a
-              v-if="row.is_published_in_google"
+              v-if="canEditEvaluations && row.is_published_in_google"
               :href="row.google_form_edit_url"
               target="_blank"
               rel="noopener noreferrer"
-              class="icon-btn"
+              class="p-1 rounded hover:bg-muted"
               title="Editar en Google Forms"
             >
-              <Pencil :size="14" />
+              <Pencil :size="16" />
             </a>
 
             <!-- Copiar enlace -->
             <button
               v-if="row.is_published_in_google"
-              class="icon-btn"
-              :title="copySuccessUuid === row.uuid ? '¡Copiado!' : 'Copiar enlace'"
+              class="p-1 rounded hover:bg-muted"
+              :title="
+                copySuccessUuid === row.uuid ? '¡Copiado!' : 'Copiar enlace'
+              "
               @click="copyFormLink(row)"
             >
-              <Copy :size="14" />
+              <Copy :size="16" />
             </button>
 
             <!-- Compartir WhatsApp -->
             <button
               v-if="row.is_published_in_google"
-              class="icon-btn"
+              class="p-1 rounded hover:bg-muted"
               title="Compartir por WhatsApp"
               @click="shareWhatsApp(row)"
             >
-              <MessageCircle :size="14" />
+              <MessageCircle :size="16" />
             </button>
 
             <!-- Ver QR -->
             <button
               v-if="row.is_published_in_google"
-              class="icon-btn"
+              class="p-1 rounded hover:bg-muted"
               title="Ver código QR"
               @click="openQR(row)"
             >
-              <QrCode :size="14" />
+              <QrCode :size="16" />
             </button>
 
             <!-- Re-sincronizar con Google Forms (solo publicados) -->
             <button
-              v-if="canWrite && row.is_published_in_google"
-              class="icon-btn"
+              v-if="canEditEvaluations && row.is_published_in_google"
+              class="p-1 rounded hover:bg-muted"
               :disabled="resyncingUuid === row.uuid"
               title="Re-sincronizar preguntas con Google Forms"
               @click="requestResync(row)"
             >
-              <RefreshCw
-                v-if="resyncingUuid !== row.uuid"
-                :size="14"
-              />
+              <RefreshCw v-if="resyncingUuid !== row.uuid" :size="16" />
               <span v-else class="mini-spinner" />
             </button>
 
             <!-- Ver respuestas -->
             <button
-              class="icon-btn"
+              v-if="canViewEvaluations"
+              class="p-1 rounded hover:bg-muted"
               title="Ver respuestas"
               @click="openResponses(row)"
             >
-              <BarChart2 :size="14" />
+              <BarChart2 :size="16" />
             </button>
           </div>
         </template>
@@ -713,65 +938,108 @@ async function submitMyEvaluation() {
          TAB: RESULTADOS
          ════════════════════════════════════════════════════════════════ -->
     <template v-if="activeTab === 'results'">
+      <AppAlert
+        v-if="resultList.error.value"
+        type="error"
+        :message="resultList.error.value"
+      />
 
-        <div class="filters-row">
-          <AppSelect :modelValue="resultList.params.status" @update:modelValue="resultList.setParam('status', $event)">
-            <option value="">Todos los estados</option>
-            <option value="PENDING">Pendiente</option>
-            <option value="IN_PROGRESS">En progreso</option>
-            <option value="COMPLETED">Completada</option>
-            <option value="EXPIRED">Vencida</option>
-          </AppSelect>
-        </div>
-
-
-      <AppAlert v-if="resultList.error.value" type="error" :message="resultList.error.value" />
-
-      <AppTable :columns="RESULT_COLS" :rows="resultList.items.value" :loading="resultList.loading.value"
-        empty-message="Aún no hay resultados. Llegarán desde la API de WhatsApp.">
+      <AppTable
+        :columns="RESULT_COLS"
+        :rows="resultList.items.value"
+        :loading="resultList.loading.value"
+        empty-message="Aún no hay resultados. Llegarán desde la API de WhatsApp."
+      >
+        <template #filter-status>
+          <AppMultiSelect
+            :options="[
+              { value: 'PENDING', label: 'Pendiente' },
+              { value: 'IN_PROGRESS', label: 'En progreso' },
+              { value: 'COMPLETED', label: 'Completada' },
+              { value: 'EXPIRED', label: 'Vencida' },
+            ]"
+            :model-value="
+              resultList.params.status ? [resultList.params.status] : []
+            "
+            @update:model-value="
+              resultList.setParam('status', $event[0] || '');
+              resultList.load();
+            "
+          />
+        </template>
 
         <template #user="{ row }">
           <div class="user-cell-sm">
             <div class="user-avatar-xs">
-              {{ (row.evaluated_user_detail?.full_name || row.evaluated_user_detail?.username || '?')[0].toUpperCase() }}
+              {{
+                (row.evaluated_user_detail?.full_name ||
+                  row.evaluated_user_detail?.username ||
+                  "?")[0].toUpperCase()
+              }}
             </div>
             <div>
-              <strong>{{ row.evaluated_user_detail?.full_name || row.evaluated_user_detail?.username || '—' }}</strong>
-              <span class="row-subtitle">{{ row.evaluated_user_detail?.email || '' }}</span>
+              <strong>{{
+                row.evaluated_user_detail?.full_name ||
+                row.evaluated_user_detail?.username ||
+                "—"
+              }}</strong>
+              <span class="row-subtitle">{{
+                row.evaluated_user_detail?.email || ""
+              }}</span>
             </div>
           </div>
         </template>
 
         <template #form="{ row }">
-          {{ row.evaluation_form_detail?.title ?? '—' }}
+          {{ row.evaluation_form_detail?.title ?? "—" }}
         </template>
 
         <template #status="{ row }">
           <StatusBadge
             :status="row.status"
-            :map="{ PENDING: 'orange', IN_PROGRESS: 'blue', COMPLETED: 'green', EXPIRED: 'red' }"
+            :map="{
+              PENDING: 'orange',
+              IN_PROGRESS: 'blue',
+              COMPLETED: 'green',
+              EXPIRED: 'red',
+            }"
           />
         </template>
 
         <template #score="{ row }">
-          <span v-if="row.score !== null" class="score-value">{{ row.score }}%</span>
+          <span v-if="row.score !== null" class="score-value"
+            >{{ row.score }}%</span
+          >
           <span v-else class="text-muted">—</span>
         </template>
 
         <template #source="{ row }">
-          <span :class="['badge', row.source === 'EXTERNAL_FORM' ? 'badge--purple' : 'badge--neutral']">
-            {{ row.source === 'EXTERNAL_FORM' ? 'WhatsApp' : row.source }}
+          <span
+            :class="[
+              'badge',
+              row.source === 'EXTERNAL_FORM'
+                ? 'badge--purple'
+                : 'badge--neutral',
+            ]"
+          >
+            {{ row.source === "EXTERNAL_FORM" ? "WhatsApp" : row.source }}
           </span>
         </template>
 
         <template #completed="{ row }">
-          {{ row.completed_at ? fmtDate(row.completed_at) : '—' }}
+          {{ row.completed_at ? fmtDate(row.completed_at) : "—" }}
         </template>
 
         <template #actions="{ row }">
-          <div class="row-actions">
-            <button class="icon-btn" title="Ver respuestas" @click="openResult(row)">
-              <Eye :size="14" />
+          <div class="flex gap-1 justify-end">
+            <!-- Ver respuestas -->
+            <button
+              v-if="canViewEvaluations"
+              class="p-1 rounded hover:bg-muted"
+              title="Ver respuestas"
+              @click="openResult(row)"
+            >
+              <Eye :size="16" />
             </button>
           </div>
         </template>
@@ -799,7 +1067,7 @@ async function submitMyEvaluation() {
       >
         <template #form="{ row }">
           <div>
-            <strong>{{ row.evaluation_form_detail?.title ?? '—' }}</strong>
+            <strong>{{ row.evaluation_form_detail?.title ?? "—" }}</strong>
             <span v-if="row.notes" class="row-subtitle">{{ row.notes }}</span>
           </div>
         </template>
@@ -807,29 +1075,50 @@ async function submitMyEvaluation() {
         <template #status="{ row }">
           <StatusBadge
             :status="row.status"
-            :map="{ PENDING: 'orange', IN_PROGRESS: 'blue', COMPLETED: 'green', EXPIRED: 'red' }"
+            :map="{
+              PENDING: 'orange',
+              IN_PROGRESS: 'blue',
+              COMPLETED: 'green',
+              EXPIRED: 'red',
+            }"
           />
         </template>
 
         <template #due_date="{ row }">
-          <span :class="{ 'text-danger': row.status !== 'COMPLETED' && row.due_date && new Date(row.due_date) < new Date() }">
-            {{ row.due_date ? fmtDate(row.due_date) : '—' }}
+          <span
+            :class="{
+              'text-danger':
+                row.status !== 'COMPLETED' &&
+                row.due_date &&
+                new Date(row.due_date) < new Date(),
+            }"
+          >
+            {{ row.due_date ? fmtDate(row.due_date) : "—" }}
           </span>
         </template>
 
         <template #score="{ row }">
-          <span v-if="row.score !== null" class="score-value">{{ row.score }}%</span>
+          <span v-if="row.score !== null" class="score-value"
+            >{{ row.score }}%</span
+          >
           <span v-else class="text-muted">—</span>
         </template>
 
         <template #actions="{ row }">
-          <div class="row-actions">
+          <div class="flex gap-1 justify-end">
             <button
-              :class="['icon-btn', row.status === 'COMPLETED' ? '' : 'icon-btn--primary']"
-              :title="row.status === 'COMPLETED' ? 'Ver respuestas' : 'Responder evaluación'"
+              :class="[
+                'p-1 rounded hover:bg-muted',
+                row.status === 'COMPLETED' ? '' : 'text-primary',
+              ]"
+              :title="
+                row.status === 'COMPLETED'
+                  ? 'Ver respuestas'
+                  : 'Responder evaluación'
+              "
               @click="openAnswerModal(row)"
             >
-              <Eye :size="14" />
+              <Eye :size="16" />
             </button>
           </div>
         </template>
@@ -841,7 +1130,11 @@ async function submitMyEvaluation() {
          ════════════════════════════════════════════════════════════════ -->
     <AppModal
       v-if="showAnswerModal && answeringEval"
-      :title="answeringEval.status === 'COMPLETED' ? `Evaluación completada` : `Responder evaluación`"
+      :title="
+        answeringEval.status === 'COMPLETED'
+          ? `Evaluación completada`
+          : `Responder evaluación`
+      "
       size="lg"
       @close="showAnswerModal = false"
     >
@@ -849,13 +1142,25 @@ async function submitMyEvaluation() {
         <div class="answer-success__icon">✓</div>
         <strong>Evaluación enviada correctamente</strong>
         <p>Tus respuestas han sido guardadas.</p>
-        <button class="btn btn--primary" @click="showAnswerModal = false">Cerrar</button>
+        <button class="btn btn--primary" @click="showAnswerModal = false">
+          Cerrar
+        </button>
       </div>
 
       <template v-else>
         <div class="answer-form-header">
-          <strong>{{ answeringEval.evaluation_form_detail?.title ?? 'Evaluación' }}</strong>
-          <StatusBadge :status="answeringEval.status" :map="{ PENDING: 'orange', IN_PROGRESS: 'blue', COMPLETED: 'green', EXPIRED: 'red' }" />
+          <strong>{{
+            answeringEval.evaluation_form_detail?.title ?? "Evaluación"
+          }}</strong>
+          <StatusBadge
+            :status="answeringEval.status"
+            :map="{
+              PENDING: 'orange',
+              IN_PROGRESS: 'blue',
+              COMPLETED: 'green',
+              EXPIRED: 'red',
+            }"
+          />
         </div>
 
         <AppAlert v-if="answerError" type="error" :message="answerError" />
@@ -865,7 +1170,11 @@ async function submitMyEvaluation() {
         </div>
 
         <div v-else class="answer-questions">
-          <div v-for="(q, idx) in answerQuestions" :key="q.uuid" class="answer-q-card">
+          <div
+            v-for="(q, idx) in answerQuestions"
+            :key="q.uuid"
+            class="answer-q-card"
+          >
             <div class="answer-q-num">{{ idx + 1 }}</div>
             <div class="answer-q-body">
               <p class="answer-q-text">
@@ -878,66 +1187,93 @@ async function submitMyEvaluation() {
                 v-if="q.question_type === 'TEXT'"
                 v-model="getAnswer(q.uuid).text"
                 rows="3"
-                :placeholder="answeringEval.status === 'COMPLETED' ? '' : 'Escribe tu respuesta...'"
+                :placeholder="
+                  answeringEval.status === 'COMPLETED'
+                    ? ''
+                    : 'Escribe tu respuesta...'
+                "
                 :disabled="answeringEval.status === 'COMPLETED'"
               />
 
               <!-- BOOLEAN -->
-              <div v-else-if="q.question_type === 'BOOLEAN'" class="answer-bool">
+              <div
+                v-else-if="q.question_type === 'BOOLEAN'"
+                class="answer-bool"
+              >
                 <label class="checkbox-label">
                   <input
+                    v-model="getAnswer(q.uuid).text"
                     type="radio"
                     :name="`q-${q.uuid}`"
                     value="Sí"
-                    v-model="getAnswer(q.uuid).text"
                     :disabled="answeringEval.status === 'COMPLETED'"
-                  /> Sí
+                  />
+                  Sí
                 </label>
                 <label class="checkbox-label">
                   <input
+                    v-model="getAnswer(q.uuid).text"
                     type="radio"
                     :name="`q-${q.uuid}`"
                     value="No"
-                    v-model="getAnswer(q.uuid).text"
                     :disabled="answeringEval.status === 'COMPLETED'"
-                  /> No
+                  />
+                  No
                 </label>
               </div>
 
               <!-- RATING -->
-              <div v-else-if="q.question_type === 'RATING'" class="answer-rating">
+              <div
+                v-else-if="q.question_type === 'RATING'"
+                class="answer-rating"
+              >
                 <button
-                  v-for="n in (q.rating_max ?? 5)"
+                  v-for="n in q.rating_max ?? 5"
                   :key="n"
                   type="button"
-                  :class="['rating-btn', { 'rating-btn--active': getAnswer(q.uuid).rating >= n }]"
+                  :class="[
+                    'rating-btn',
+                    { 'rating-btn--active': getAnswer(q.uuid).rating >= n },
+                  ]"
                   :disabled="answeringEval.status === 'COMPLETED'"
                   @click="getAnswer(q.uuid).rating = n"
-                >{{ n }}</button>
-                <span class="rating-label">{{ getAnswer(q.uuid).rating ?? '—' }} / {{ q.rating_max ?? 5 }}</span>
+                >
+                  {{ n }}
+                </button>
+                <span class="rating-label"
+                  >{{ getAnswer(q.uuid).rating ?? "—" }} /
+                  {{ q.rating_max ?? 5 }}</span
+                >
               </div>
 
               <!-- SINGLE -->
-              <div v-else-if="q.question_type === 'SINGLE'" class="answer-options">
+              <div
+                v-else-if="q.question_type === 'SINGLE'"
+                class="answer-options"
+              >
                 <label
-                  v-for="opt in (q.options ?? [])"
+                  v-for="opt in q.options ?? []"
                   :key="opt"
                   class="checkbox-label"
                 >
                   <input
+                    v-model="getAnswer(q.uuid).text"
                     type="radio"
                     :name="`q-${q.uuid}`"
                     :value="opt"
-                    v-model="getAnswer(q.uuid).text"
                     :disabled="answeringEval.status === 'COMPLETED'"
-                  /> {{ opt }}
+                  />
+                  {{ opt }}
                 </label>
               </div>
 
               <!-- MULTIPLE -->
-              <div v-else-if="q.question_type === 'MULTIPLE'" class="answer-options">
+              <div
+                v-else-if="q.question_type === 'MULTIPLE'"
+                class="answer-options"
+              >
                 <label
-                  v-for="opt in (q.options ?? [])"
+                  v-for="opt in q.options ?? []"
                   :key="opt"
                   class="checkbox-label"
                 >
@@ -947,34 +1283,51 @@ async function submitMyEvaluation() {
                     :checked="getAnswer(q.uuid).options?.includes(opt)"
                     :disabled="answeringEval.status === 'COMPLETED'"
                     @change="toggleOption(q.uuid, opt)"
-                  /> {{ opt }}
+                  />
+                  {{ opt }}
                 </label>
               </div>
 
               <!-- DATE -->
               <input
                 v-else-if="q.question_type === 'DATE'"
-                type="date"
                 v-model="getAnswer(q.uuid).text"
+                type="date"
                 :disabled="answeringEval.status === 'COMPLETED'"
               />
             </div>
           </div>
         </div>
 
-        <div v-if="answeringEval.status !== 'COMPLETED'" class="form-actions" style="margin-top:16px">
-          <button type="button" class="btn btn--ghost" @click="showAnswerModal = false">Cancelar</button>
+        <div
+          v-if="answeringEval.status !== 'COMPLETED'"
+          class="form-actions"
+          style="margin-top: 16px"
+        >
+          <button
+            type="button"
+            class="btn btn--ghost"
+            @click="showAnswerModal = false"
+          >
+            Cancelar
+          </button>
           <button
             type="button"
             class="btn btn--primary"
             :disabled="answerLoading || !answerQuestions.length"
             @click="submitMyEvaluation"
           >
-            {{ answerLoading ? 'Enviando...' : 'Enviar evaluación' }}
+            {{ answerLoading ? "Enviando..." : "Enviar evaluación" }}
           </button>
         </div>
-        <div v-else class="form-actions" style="margin-top:16px">
-          <button type="button" class="btn btn--ghost" @click="showAnswerModal = false">Cerrar</button>
+        <div v-else class="form-actions" style="margin-top: 16px">
+          <button
+            type="button"
+            class="btn btn--ghost"
+            @click="showAnswerModal = false"
+          >
+            Cerrar
+          </button>
         </div>
       </template>
     </AppModal>
@@ -984,11 +1337,15 @@ async function submitMyEvaluation() {
          ════════════════════════════════════════════════════════════════ -->
     <AppModal
       v-if="showFormModal"
-      :title="editingForm ? `Editar: ${editingForm.title}` : 'Nuevo formulario de preguntas'"
+      :title="
+        editingForm
+          ? `Editar: ${editingForm.title}`
+          : 'Nuevo formulario de preguntas'
+      "
       size="xl"
       @close="showFormModal = false"
     >
-      <form @submit.prevent="handleFormSubmit" class="space-y-6">
+      <form class="space-y-6" @submit.prevent="handleFormSubmit">
         <AppAlert v-if="formError" type="error" :message="formError" />
 
         <!-- Advertencia si el formulario ya está publicado en Google Forms -->
@@ -1001,13 +1358,27 @@ async function submitMyEvaluation() {
         <!-- Datos del formulario -->
         <div class="grid grid-cols-1 gap-4">
           <FormField label="Título del formulario" required>
-            <AppInput v-model="formData.title" type="text" required />
+            <AppInput
+              v-model="formData.title"
+              type="text"
+              required
+              :disabled="!canSaveCurrentForm"
+            />
           </FormField>
           <FormField label="Descripción">
-            <AppTextarea v-model="formData.description" rows="2" />
+            <AppTextarea
+              v-model="formData.description"
+              rows="2"
+              :disabled="!canSaveCurrentForm"
+            />
           </FormField>
           <label class="flex items-center gap-2 text-sm text-foreground">
-            <input v-model="formData.is_active" type="checkbox" class="w-4 h-4 text-primary" />
+            <input
+              v-model="formData.is_active"
+              type="checkbox"
+              class="w-4 h-4 text-primary"
+              :disabled="!canSaveCurrentForm"
+            />
             Formulario activo (disponible para enviar por WhatsApp)
           </label>
         </div>
@@ -1016,15 +1387,29 @@ async function submitMyEvaluation() {
         <div class="border-t pt-6">
           <div class="flex items-center justify-between mb-4">
             <div>
-              <strong class="text-sm font-semibold text-foreground">Preguntas</strong>
-              <span class="ml-2 text-xs text-muted-foreground">{{ visibleQs.length }} pregunta{{ visibleQs.length !== 1 ? 's' : '' }}</span>
+              <strong class="text-sm font-semibold text-foreground"
+                >Preguntas</strong
+              >
+              <span class="ml-2 text-xs text-muted-foreground"
+                >{{ visibleQs.length }} pregunta{{
+                  visibleQs.length !== 1 ? "s" : ""
+                }}</span
+              >
             </div>
-            <button type="button" class="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold border rounded hover:bg-muted" @click="formQuestions.push(newQ())">
+            <button
+              v-if="canCreateEvaluations"
+              type="button"
+              class="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold border rounded hover:bg-muted"
+              @click="formQuestions.push(newQ())"
+            >
               <Plus :size="14" /> Agregar pregunta
             </button>
           </div>
 
-          <p v-if="!visibleQs.length" class="text-sm text-muted-foreground italic text-center py-6 border rounded-lg bg-muted/20">
+          <p
+            v-if="!visibleQs.length"
+            class="text-sm text-muted-foreground italic text-center py-6 border rounded-lg bg-muted/20"
+          >
             Agrega las preguntas que se enviarán por WhatsApp.
           </p>
 
@@ -1034,40 +1419,93 @@ async function submitMyEvaluation() {
               :key="q._key"
               class="flex gap-4 p-4 border rounded-lg bg-card"
             >
-              <div class="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-bold text-sm">
+              <div
+                class="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-bold text-sm"
+              >
                 {{ idx + 1 }}
               </div>
 
               <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField label="Texto de la pregunta" required class="col-span-full">
-                  <input v-model="q.question_text" type="text" required placeholder="¿Cómo evaluarías...?" class="w-full px-3 py-2 border rounded-md" />
+                <FormField
+                  label="Texto de la pregunta"
+                  required
+                  class="col-span-full"
+                >
+                  <input
+                    v-model="q.question_text"
+                    type="text"
+                    required
+                    placeholder="¿Cómo evaluarías...?"
+                    class="w-full px-3 py-2 border rounded-md"
+                    :disabled="!canEditQuestion(q)"
+                  />
                 </FormField>
                 <FormField label="Tipo de respuesta">
-                  <AppSelect v-model="q.question_type">
-                    <option v-for="t in QUESTION_TYPES" :key="t.value" :value="t.value">
+                  <AppSelect
+                    v-model="q.question_type"
+                    :disabled="!canEditQuestion(q)"
+                  >
+                    <option
+                      v-for="t in QUESTION_TYPES"
+                      :key="t.value"
+                      :value="t.value"
+                    >
                       {{ t.label }}
                     </option>
                   </AppSelect>
                 </FormField>
-                <FormField v-if="q.question_type === 'RATING'" label="Puntaje máximo">
-                  <input v-model="q.rating_max" type="number" min="2" max="10" class="w-full px-3 py-2 border rounded-md" />
+                <FormField
+                  v-if="q.question_type === 'RATING'"
+                  label="Puntaje máximo"
+                >
+                  <input
+                    v-model="q.rating_max"
+                    type="number"
+                    min="2"
+                    max="10"
+                    class="w-full px-3 py-2 border rounded-md"
+                    :disabled="!canEditQuestion(q)"
+                  />
                 </FormField>
                 <FormField
-                  v-if="['MULTIPLE','SINGLE'].includes(q.question_type)"
+                  v-if="['MULTIPLE', 'SINGLE'].includes(q.question_type)"
                   label="Opciones (una por línea)"
                   class="col-span-full"
                 >
-                  <textarea v-model="q.options" rows="3" placeholder="Nunca&#10;A veces&#10;Siempre" class="w-full px-3 py-2 border rounded-md" />
+                  <textarea
+                    v-model="q.options"
+                    rows="3"
+                    placeholder="Nunca&#10;A veces&#10;Siempre"
+                    class="w-full px-3 py-2 border rounded-md"
+                    :disabled="!canEditQuestion(q)"
+                  />
                 </FormField>
                 <FormField label="Orden">
-                  <input v-model="q.order" type="number" min="1" class="w-full px-3 py-2 border rounded-md" />
+                  <input
+                    v-model="q.order"
+                    type="number"
+                    min="1"
+                    class="w-full px-3 py-2 border rounded-md"
+                    :disabled="!canEditQuestion(q)"
+                  />
                 </FormField>
                 <label class="flex items-center gap-2 text-sm">
-                  <input v-model="q.is_required" type="checkbox" /> Obligatoria
+                  <input
+                    v-model="q.is_required"
+                    type="checkbox"
+                    :disabled="!canEditQuestion(q)"
+                  />
+                  Obligatoria
                 </label>
               </div>
 
-              <button type="button" class="p-1 text-muted-foreground hover:text-destructive transition-colors" title="Eliminar pregunta" @click="removeQ(q)">
+              <button
+                v-if="canRemoveQuestion(q)"
+                type="button"
+                class="p-1 text-muted-foreground hover:text-destructive transition-colors"
+                title="Eliminar pregunta"
+                @click="removeQ(q)"
+              >
                 <X :size="18" />
               </button>
             </div>
@@ -1075,9 +1513,19 @@ async function submitMyEvaluation() {
         </div>
 
         <div class="flex justify-end gap-3 pt-6 border-t">
-          <button type="button" class="px-4 py-2 text-sm font-medium border rounded hover:bg-muted" @click="showFormModal = false">Cancelar</button>
-          <button type="submit" class="px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded hover:bg-primary/90" :disabled="formLoading">
-            {{ formLoading ? 'Guardando...' : 'Guardar formulario' }}
+          <button
+            type="button"
+            class="px-4 py-2 text-sm font-medium border rounded hover:bg-muted"
+            @click="showFormModal = false"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            class="px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded hover:bg-primary/90"
+            :disabled="formLoading || !canSaveCurrentForm"
+          >
+            {{ formLoading ? "Guardando..." : "Guardar formulario" }}
           </button>
         </div>
       </form>
@@ -1096,20 +1544,21 @@ async function submitMyEvaluation() {
         Este formulario no tiene preguntas todavía.
       </div>
       <div v-else class="detail-questions">
-        <div
-          v-for="(q, idx) in detailQuestions"
-          :key="q.uuid"
-          class="detail-q"
-        >
+        <div v-for="(q, idx) in detailQuestions" :key="q.uuid" class="detail-q">
           <div class="detail-q__num">{{ idx + 1 }}</div>
           <div class="detail-q__body">
             <p class="detail-q__text">{{ q.question_text }}</p>
             <div class="detail-q__meta">
               <span class="badge badge--blue">{{ q.question_type }}</span>
-              <span v-if="q.question_type === 'RATING'" class="badge badge--neutral">
+              <span
+                v-if="q.question_type === 'RATING'"
+                class="badge badge--neutral"
+              >
                 Máx: {{ q.rating_max }}
               </span>
-              <span v-if="!q.is_required" class="badge badge--neutral">Opcional</span>
+              <span v-if="!q.is_required" class="badge badge--neutral"
+                >Opcional</span
+              >
             </div>
             <ul v-if="q.options?.length" class="detail-q__options">
               <li v-for="opt in q.options" :key="opt">{{ opt }}</li>
@@ -1132,35 +1581,57 @@ async function submitMyEvaluation() {
       <div class="result-header">
         <div class="result-stat">
           <span class="result-stat__label">Formulario</span>
-          <strong>{{ detailEval.evaluation_form_detail?.title ?? '—' }}</strong>
+          <strong>{{ detailEval.evaluation_form_detail?.title ?? "—" }}</strong>
         </div>
         <div class="result-stat">
           <span class="result-stat__label">Estado</span>
           <StatusBadge
             :status="detailEval.status"
-            :map="{ PENDING: 'orange', IN_PROGRESS: 'blue', COMPLETED: 'green', EXPIRED: 'red' }"
+            :map="{
+              PENDING: 'orange',
+              IN_PROGRESS: 'blue',
+              COMPLETED: 'green',
+              EXPIRED: 'red',
+            }"
           />
         </div>
         <div class="result-stat">
           <span class="result-stat__label">Puntaje</span>
           <strong :class="detailEval.score !== null ? 'score-value' : ''">
-            {{ detailEval.score !== null ? `${detailEval.score}%` : '—' }}
+            {{ detailEval.score !== null ? `${detailEval.score}%` : "—" }}
           </strong>
         </div>
         <div class="result-stat">
           <span class="result-stat__label">Origen</span>
-          <span :class="['badge', detailEval.source === 'EXTERNAL_FORM' ? 'badge--purple' : 'badge--neutral']">
-            {{ detailEval.source === 'EXTERNAL_FORM' ? 'WhatsApp' : detailEval.source }}
+          <span
+            :class="[
+              'badge',
+              detailEval.source === 'EXTERNAL_FORM'
+                ? 'badge--purple'
+                : 'badge--neutral',
+            ]"
+          >
+            {{
+              detailEval.source === "EXTERNAL_FORM"
+                ? "WhatsApp"
+                : detailEval.source
+            }}
           </span>
         </div>
         <div class="result-stat">
           <span class="result-stat__label">Completado</span>
-          <span>{{ detailEval.completed_at ? fmtDate(detailEval.completed_at) : '—' }}</span>
+          <span>{{
+            detailEval.completed_at ? fmtDate(detailEval.completed_at) : "—"
+          }}</span>
         </div>
       </div>
 
       <!-- Respuestas -->
-      <div v-if="!(detailEval.answers?.length)" class="empty-detail" style="margin-top:16px">
+      <div
+        v-if="!detailEval.answers?.length"
+        class="empty-detail"
+        style="margin-top: 16px"
+      >
         No hay respuestas registradas aún.
       </div>
       <div v-else class="answers-list">
@@ -1171,18 +1642,24 @@ async function submitMyEvaluation() {
         >
           <div class="answer-row__q">
             <span class="answer-row__num">{{ idx + 1 }}</span>
-            {{ ans.question_detail?.question_text ?? '—' }}
+            {{ ans.question_detail?.question_text ?? "—" }}
           </div>
           <div class="answer-row__a">
             <!-- Rating -->
             <template v-if="ans.question_detail?.question_type === 'RATING'">
               <div class="rating-display">
                 <span
-                  v-for="n in (ans.question_detail?.rating_max ?? 5)"
+                  v-for="n in ans.question_detail?.rating_max ?? 5"
                   :key="n"
-                  :class="['rating-dot', n <= ans.answer_rating ? 'rating-dot--filled' : '']"
+                  :class="[
+                    'rating-dot',
+                    n <= ans.answer_rating ? 'rating-dot--filled' : '',
+                  ]"
                 />
-                <span class="rating-num">{{ ans.answer_rating }} / {{ ans.question_detail?.rating_max ?? 5 }}</span>
+                <span class="rating-num"
+                  >{{ ans.answer_rating }} /
+                  {{ ans.question_detail?.rating_max ?? 5 }}</span
+                >
               </div>
             </template>
             <!-- Opciones -->
@@ -1192,12 +1669,13 @@ async function submitMyEvaluation() {
                   v-for="opt in ans.answer_options"
                   :key="opt"
                   class="badge badge--blue"
-                >{{ opt }}</span>
+                  >{{ opt }}</span
+                >
               </div>
             </template>
             <!-- Texto / booleano / fecha -->
             <template v-else>
-              <span>{{ ans.answer_text ?? '—' }}</span>
+              <span>{{ ans.answer_text ?? "—" }}</span>
             </template>
           </div>
         </div>
@@ -1236,7 +1714,13 @@ async function submitMyEvaluation() {
       v-if="publishError"
       type="error"
       :message="publishError"
-      style="position:fixed;bottom:24px;right:24px;z-index:300;max-width:420px"
+      style="
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        z-index: 300;
+        max-width: 420px;
+      "
     />
 
     <!-- ── Confirmar re-sincronizar con Google Forms ── -->
@@ -1255,15 +1739,20 @@ async function submitMyEvaluation() {
     <QRModal
       v-if="showQRModal && qrTargetForm"
       :form="qrTargetForm"
-      @close="showQRModal = false; qrTargetForm = null"
+      @close="
+        showQRModal = false;
+        qrTargetForm = null;
+      "
     />
 
     <!-- ── Modal Respuestas ── -->
     <ResponsesModal
       v-if="showResponsesModal && responsesTargetForm"
       :form="responsesTargetForm"
-      @close="showResponsesModal = false; responsesTargetForm = null"
+      @close="
+        showResponsesModal = false;
+        responsesTargetForm = null;
+      "
     />
   </section>
 </template>
-

@@ -11,29 +11,29 @@
  * Emits:
  *   load(productUuid) — solicita al padre que rellene el cache
  */
-import { computed, onMounted } from 'vue'
+import { computed, onMounted } from "vue";
 
 const props = defineProps({
   productUuid: { type: String, required: true },
-  cache:       { type: Object, required: true },
-  nameMap:     { type: Object, required: true },
-})
+  cache: { type: Object, required: true },
+  nameMap: { type: Object, required: true },
+});
 
-const emit = defineEmits(['load'])
+const emit = defineEmits(["load"]);
 
 onMounted(() => {
   // Si ya está en cache no hace nada; si no, pide la carga
   if (props.cache[props.productUuid] === undefined) {
-    emit('load', props.productUuid)
+    emit("load", props.productUuid);
   }
-})
+});
 
 const supplierNames = computed(() => {
-  const uuids = props.cache[props.productUuid]
-  if (!uuids) return null          // aún cargando
-  if (!uuids.length) return []     // sin proveedores
-  return uuids.map((uuid) => props.nameMap[uuid] ?? uuid)
-})
+  const uuids = props.cache[props.productUuid];
+  if (!uuids) return null; // aún cargando
+  if (!uuids.length) return []; // sin proveedores
+  return uuids.map((uuid) => props.nameMap[uuid] ?? uuid);
+});
 </script>
 
 <template>
@@ -45,11 +45,7 @@ const supplierNames = computed(() => {
 
   <!-- Chips -->
   <div v-else class="supplier-chips">
-    <span
-      v-for="name in supplierNames"
-      :key="name"
-      class="supplier-chip"
-    >
+    <span v-for="name in supplierNames" :key="name" class="supplier-chip">
       {{ name }}
     </span>
   </div>
