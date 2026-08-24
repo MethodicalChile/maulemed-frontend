@@ -1,8 +1,8 @@
 <script setup>
-import { Sun, Moon } from 'lucide-vue-next'
-import { useTheme } from '@/composables/useTheme'
+import { Sun, Moon } from "lucide-vue-next";
+import { useTheme } from "@/composables/useTheme";
 
-const { isDark, toggleTheme } = useTheme()
+const { isDark, toggleTheme } = useTheme();
 </script>
 
 <template>
@@ -11,6 +11,6 @@ const { isDark, toggleTheme } = useTheme()
     @click="toggleTheme"
   >
     <component :is="isDark ? Sun : Moon" :size="18" class="text-primary" />
-    {{ isDark ? 'Modo claro' : 'Modo oscuro' }}
+    {{ isDark ? "Modo claro" : "Modo oscuro" }}
   </button>
 </template>

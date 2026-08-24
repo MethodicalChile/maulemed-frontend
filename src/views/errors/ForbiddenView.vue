@@ -1,8 +1,8 @@
 <script setup>
-import { useRouter } from 'vue-router'
-import { ShieldOff } from 'lucide-vue-next'
+import { useRouter } from "vue-router";
+import { ShieldOff } from "lucide-vue-next";
 
-const router = useRouter()
+const router = useRouter();
 </script>
 
 <template>
