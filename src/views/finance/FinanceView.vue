@@ -248,6 +248,9 @@ async function confirmDeletePayment() {
 const budgetColumns = [
   { key: "legal_entity", label: "Entidad" },
   { key: "budget_category", label: "Línea" },
+  // El centro de costo es el eje del control presupuestario; sin esta columna
+  // dos presupuestos de la misma sociedad se leen como filas repetidas.
+  { key: "cost_center", label: "Centro de costo" },
   { key: "branch", label: "Sucursal" },
   { key: "period", label: "Período" },
   { key: "budget_amount", label: "Presupuesto" },
@@ -613,6 +616,9 @@ function fmtDate(val) {
         }}</template>
         <template #budget_category="{ row }">{{
           row.budget_category_detail?.name ?? "—"
+        }}</template>
+        <template #cost_center="{ row }">{{
+          row.cost_center_detail?.name ?? "—"
         }}</template>
         <template #branch="{ row }">{{
           row.branch_detail?.name ?? "—"

@@ -62,7 +62,13 @@ const GROUPS = [
   {
     key: "admin",
     label: "Administración",
-    keys: ["organizations", "finance", "documents", "document-preview"],
+    keys: [
+      "organizations",
+      "finance",
+      "revenue",
+      "documents",
+      "document-preview",
+    ],
   },
   {
     key: "people",
@@ -267,6 +273,9 @@ const VISIBILITY = {
 
   // Finanzas
   finance: () => hasAnyPermission("can_view_finance"),
+
+  // Ingresos
+  revenue: () => hasAnyPermission("can_view_finance"),
 
   // Evaluaciones
   evaluations: () => hasAnyPermission("can_view_evaluations"),
