@@ -224,14 +224,13 @@ const VISIBILITY = {
   organizations: () =>
     hasAnyPermission(
       "can_view_organizations",
-      "can_manage_organizations",
     ),
 
   // Catálogo
   products: () =>
     hasAnyPermission(
+      "can_view_products",
       "can_view_catalogs",
-      "can_manage_catalogs",
     ),
 
   // Mantenedor
@@ -244,14 +243,13 @@ const VISIBILITY = {
   suppliers: () =>
     hasAnyPermission(
       "can_view_suppliers",
-      "can_manage_suppliers",
     ),
 
   // Inventario
   inventory: () =>
     hasAnyPermission(
       "can_view_inventory",
-      "can_manage_inventory",
+      "can_view_warehouses",
     ),
 
   // Compras

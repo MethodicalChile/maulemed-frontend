@@ -58,28 +58,25 @@ export function usePermissions() {
     canViewCatalogs: computed(() =>
       canAny(
         "can_view_catalogs",
-        "can_manage_catalogs",
+        "can_view_products",
       ),
     ),
 
     canCreateProducts: computed(() =>
       canAny(
         "can_create_products",
-        "can_manage_products",
       ),
     ),
 
     canEditProducts: computed(() =>
       canAny(
         "can_edit_products",
-        "can_manage_products",
       ),
     ),
 
     canDeleteProducts: computed(() =>
       canAny(
         "can_delete_products",
-        "can_manage_products",
       ),
     ),
 
@@ -302,28 +299,24 @@ export function usePermissions() {
     canViewOrganizations: computed(() =>
       canAny(
         "can_view_organizations",
-        "can_manage_organizations",
       ),
     ),
 
     canCreateOrganizations: computed(() =>
       canAny(
         "can_create_organizations",
-        "can_manage_organizations",
       ),
     ),
 
     canEditOrganizations: computed(() =>
       canAny(
         "can_edit_organizations",
-        "can_manage_organizations",
       ),
     ),
 
     canDeleteOrganizations: computed(() =>
       canAny(
         "can_delete_organizations",
-        "can_manage_organizations",
       ),
     ),
 

@@ -29,7 +29,7 @@ export function useList(fetchFn, defaultParams = {}) {
   const pagination = reactive({
     count: 0,
     page: 1,
-    pageSize: 20,
+    pageSize: defaultParams.page_size ?? 20,
   });
 
   const params = reactive({ ...defaultParams });

@@ -112,7 +112,7 @@ async function loadOptions() {
   }
 
   const [rolesRes, orgsRes, branchRes] = await Promise.allSettled([
-    usersApi.listRoles(),
+    optionsApi.getRoles(),
     optionsApi.getOrganizations(),
     optionsApi.getBranches(),
   ]);

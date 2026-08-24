@@ -181,15 +181,25 @@ function respondentLabel(ev) {
       <AppAlert v-if="syncError" type="error" :message="syncError" />
 
       <!-- ── Tabs ── -->
-      <div class="tab-bar" style="margin: 0">
+      <div class="flex border-b border-border mb-6">
         <button
-          :class="['tab-btn', { active: activeTab === 'summary' }]"
+          :class="[
+            'px-4 py-2 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2',
+            activeTab === 'summary'
+              ? 'text-primary border-primary'
+              : 'text-muted-foreground hover:text-foreground border-transparent',
+          ]"
           @click="switchTab('summary')"
         >
           <BarChart2 :size="14" /> Resumen por pregunta
         </button>
         <button
-          :class="['tab-btn', { active: activeTab === 'individual' }]"
+          :class="[
+            'px-4 py-2 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2',
+            activeTab === 'individual'
+              ? 'text-primary border-primary'
+              : 'text-muted-foreground hover:text-foreground border-transparent',
+          ]"
           @click="switchTab('individual')"
         >
           <List :size="14" /> Respuestas individuales

@@ -91,7 +91,7 @@ const routes = [
         component: ProductsView,
         meta: {
           title: "Productos",
-          permission: "can_view_catalogs",
+          permission: "can_view_products",
         },
       },
       {
@@ -145,7 +145,7 @@ const routes = [
         component: ProductPriceHistoryView,
         meta: {
           title: "Historial de precios",
-          permission: "can_view_catalogs",
+          permission: "can_view_products",
         },
       },
       {
@@ -318,18 +318,20 @@ function checkPermission(authStore, key) {
     // Organización
     can_view_organizations: [
       "can_view_organizations",
-      "can_manage_organizations",
     ],
 
     can_manage_organizations: [
       "can_view_organizations",
-      "can_manage_organizations",
     ],
 
     // Catálogo
     can_view_catalogs: [
       "can_view_catalogs",
-      "can_manage_catalogs",
+      "can_view_products",
+    ],
+
+    can_view_products: [
+      "can_view_products",
     ],
 
     can_manage_catalogs: [
@@ -339,13 +341,12 @@ function checkPermission(authStore, key) {
     // Proveedores
     can_view_suppliers: [
       "can_view_suppliers",
-      "can_manage_suppliers",
     ],
 
     // Inventario
     can_view_inventory: [
       "can_view_inventory",
-      "can_manage_inventory",
+      "can_view_warehouses",
     ],
 
     // Carga de documentos
@@ -368,7 +369,6 @@ function checkPermission(authStore, key) {
 
     can_create_supply_request: [
       "can_create_supply_request",
-      "can_manage_purchase_orders",
       "can_approve_supply_request",
       "can_receive_purchase",
     ],
@@ -426,13 +426,11 @@ function checkPermission(authStore, key) {
 
     // Documentos / órdenes de compra legacy
     can_manage_purchase_orders: [
-      "can_manage_purchase_orders",
       "can_view_purchase_orders",
       "can_create_purchase_order",
       "can_edit_purchase_order",
       "can_delete_purchase_order",
       "can_receive_purchase",
-      "can_manage_inventory",
     ],
 
     // Evaluaciones
@@ -468,7 +466,6 @@ function checkPermission(authStore, key) {
 
     // Legacy
     can_manage_users: [
-      "can_manage_users",
       "can_view_users",
       "can_create_users",
       "can_edit_users",

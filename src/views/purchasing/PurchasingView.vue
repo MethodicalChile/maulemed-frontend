@@ -461,10 +461,14 @@ async function handleClaimSubmit() {
     if (!canCreateSupplierClaims.value) return;
   }
 
-  await claimSubmit();
-  if (!claimError.value) {
-    showClaimModal.value = false;
-    claimList.load();
+  try {
+    await claimSubmit();
+    if (!claimError.value) {
+      showClaimModal.value = false;
+      claimList.load();
+    }
+  } catch {
+    // Evitar crash por error no capturado de useForm
   }
 }
 
@@ -582,11 +586,14 @@ function openCreateSR() {
 async function handleSRCreate() {
   if (!canCreateSupplyRequest.value) return;
 
-  await srSubmit();
-
-  if (!srError.value) {
-    showSRCreateModal.value = false;
-    srList.load();
+  try {
+    await srSubmit();
+    if (!srError.value) {
+      showSRCreateModal.value = false;
+      srList.load();
+    }
+  } catch {
+    // Evitar crash por error no capturado de useForm
   }
 }
 
@@ -792,11 +799,14 @@ async function handlePOSubmit() {
     if (!canCreatePurchaseOrders.value) return;
   }
 
-  await poSubmit();
-
-  if (!poError.value) {
-    showPOModal.value = false;
-    poList.load();
+  try {
+    await poSubmit();
+    if (!poError.value) {
+      showPOModal.value = false;
+      poList.load();
+    }
+  } catch {
+    // Evitar crash por error no capturado de useForm
   }
 }
 
@@ -943,12 +953,15 @@ async function handleReceiptCreate() {
     if (!canCreatePurchaseReceipts.value) return;
   }
 
-  await receiptSubmit();
-
-  if (!receiptCreateError.value) {
-    showReceiptModal.value = false;
-    editingReceipt.value = null;
-    receiptList.load();
+  try {
+    await receiptSubmit();
+    if (!receiptCreateError.value) {
+      showReceiptModal.value = false;
+      editingReceipt.value = null;
+      receiptList.load();
+    }
+  } catch {
+    // Evitar crash por error no capturado de useForm
   }
 }
 
