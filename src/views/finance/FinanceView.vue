@@ -34,20 +34,16 @@ const hasFullAccess = computed(() => {
 
 const canCreateFinance = computed(
   () =>
-    hasFullAccess.value ||
-    Boolean(authStore.permissions?.can_create_finance),
+    hasFullAccess.value || Boolean(authStore.permissions?.can_create_finance),
 );
 
 const canEditFinance = computed(
-  () =>
-    hasFullAccess.value ||
-    Boolean(authStore.permissions?.can_edit_finance),
+  () => hasFullAccess.value || Boolean(authStore.permissions?.can_edit_finance),
 );
 
 const canDeleteFinance = computed(
   () =>
-    hasFullAccess.value ||
-    Boolean(authStore.permissions?.can_delete_finance),
+    hasFullAccess.value || Boolean(authStore.permissions?.can_delete_finance),
 );
 
 const INVOICE_STATUS_OPTIONS = [
@@ -156,9 +152,7 @@ async function handleInvoiceSubmit() {
   if (res) {
     const d = res.data?.data ?? res.data;
 
-    invoices.value = Array.isArray(d)
-      ? d
-      : (d.results ?? d);
+    invoices.value = Array.isArray(d) ? d : (d.results ?? d);
   }
 }
 
@@ -168,9 +162,7 @@ async function confirmDeleteInvoice() {
   deleteInvLoading.value = true;
 
   try {
-    await financeApi.deleteInvoice(
-      deleteInvoice.value.uuid,
-    );
+    await financeApi.deleteInvoice(deleteInvoice.value.uuid);
 
     deleteInvoice.value = null;
 
@@ -242,9 +234,7 @@ async function confirmDeletePayment() {
   deletePayLoading.value = true;
 
   try {
-    await financeApi.deletePayment(
-      deletePayment.value.uuid,
-    );
+    await financeApi.deletePayment(deletePayment.value.uuid);
 
     deletePayment.value = null;
 
@@ -257,9 +247,13 @@ async function confirmDeletePayment() {
 // ── Presupuestos ──────────────────────────────────────────────────────────────
 const budgetColumns = [
   { key: "legal_entity", label: "Entidad" },
+  { key: "budget_category", label: "Línea" },
   { key: "branch", label: "Sucursal" },
   { key: "period", label: "Período" },
   { key: "budget_amount", label: "Presupuesto" },
+  // Comprometido: aprobado en una orden y todavía sin factura. Sin esta
+  // columna, dos compras seguidas parecen tener el mismo saldo libre.
+  { key: "committed_amount", label: "Comprometido" },
   { key: "consumed_amount", label: "Consumido" },
   { key: "available", label: "Disponible" },
   { key: "actions", label: "", width: "90px" },
@@ -315,9 +309,7 @@ async function confirmDeleteBudget() {
   deleteBudgetLoading.value = true;
 
   try {
-    await financeApi.deleteBudget(
-      deleteBudget.value.uuid,
-    );
+    await financeApi.deleteBudget(deleteBudget.value.uuid);
 
     deleteBudget.value = null;
 
@@ -409,23 +401,15 @@ async function loadData() {
   ]);
 
   if (supRes.status === "fulfilled") {
-    const d =
-      supRes.value.data?.data ??
-      supRes.value.data;
+    const d = supRes.value.data?.data ?? supRes.value.data;
 
-    suppliers.value = Array.isArray(d)
-      ? d
-      : (d.results ?? d);
+    suppliers.value = Array.isArray(d) ? d : (d.results ?? d);
   }
 
   if (invRes.status === "fulfilled") {
-    const d =
-      invRes.value.data?.data ??
-      invRes.value.data;
+    const d = invRes.value.data?.data ?? invRes.value.data;
 
-    invoices.value = Array.isArray(d)
-      ? d
-      : (d.results ?? d);
+    invoices.value = Array.isArray(d) ? d : (d.results ?? d);
   }
 }
 
@@ -583,10 +567,7 @@ function fmtDate(val) {
           ><StatusBadge :status="row.status"
         /></template>
         <template #actions="{ row }">
-          <div
-            v-if="canEditFinance || canDeleteFinance"
-            class="flex gap-1"
-          >
+          <div v-if="canEditFinance || canDeleteFinance" class="flex gap-1">
             <button
               v-if="canEditFinance"
               class="p-2 rounded-md hover:bg-muted"
@@ -630,6 +611,9 @@ function fmtDate(val) {
         <template #legal_entity="{ row }">{{
           row.legal_entity_detail?.name ?? "—"
         }}</template>
+        <template #budget_category="{ row }">{{
+          row.budget_category_detail?.name ?? "—"
+        }}</template>
         <template #branch="{ row }">{{
           row.branch_detail?.name ?? "—"
         }}</template>
@@ -638,6 +622,9 @@ function fmtDate(val) {
         >
         <template #budget_amount="{ row }">{{
           fmt(row.budget_amount)
+        }}</template>
+        <template #committed_amount="{ row }">{{
+          fmt(row.committed_amount)
         }}</template>
         <template #consumed_amount="{ row }">{{
           fmt(row.consumed_amount)
@@ -654,10 +641,7 @@ function fmtDate(val) {
           </span>
         </template>
         <template #actions="{ row }">
-          <div
-            v-if="canEditFinance || canDeleteFinance"
-            class="flex gap-1"
-          >
+          <div v-if="canEditFinance || canDeleteFinance" class="flex gap-1">
             <button
               v-if="canEditFinance"
               class="p-2 rounded-md hover:bg-muted"

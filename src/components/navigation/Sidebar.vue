@@ -18,6 +18,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   ShoppingCart,
+  TrendingUp,
   Truck,
   UserCog,
   Users,
@@ -108,6 +109,7 @@ const ICON_MAP = {
   purchasing: ShoppingCart,
   transfers: Truck,
   finance: DollarSign,
+  revenue: TrendingUp,
   evaluations: ClipboardList,
   reports: FileText,
   documents: FolderOpen,
@@ -128,6 +130,7 @@ const COLOR_MAP = {
   purchasing: "text-emerald-600",
   transfers: "text-orange-600",
   finance: "text-green-600",
+  revenue: "text-lime-600",
   evaluations: "text-purple-600",
   reports: "text-cyan-600",
   documents: "text-amber-600",
@@ -149,6 +152,7 @@ const FALLBACK_MENU = [
   { key: "purchasing", label: "Compras", path: "/purchasing" },
   { key: "transfers", label: "Traspasos", path: "/transfers" },
   { key: "finance", label: "Finanzas", path: "/finance" },
+  { key: "revenue", label: "Ingresos", path: "/revenue" },
   { key: "evaluations", label: "Evaluaciones", path: "/evaluations" },
   { key: "reports", label: "Reportes", path: "/reports" },
   { key: "documents", label: "Documentos", path: "/documents" },
@@ -234,10 +238,7 @@ const VISIBILITY = {
     ),
 
   // Mantenedor
-  maintenance: () =>
-    hasAnyPermission(
-      "can_manage_catalogs",
-    ),
+  maintenance: () => hasAnyPermission("can_manage_catalogs"),
 
   // Proveedores
   suppliers: () =>
@@ -262,35 +263,20 @@ const VISIBILITY = {
     ),
 
   // Traspasos
-  transfers: () =>
-    hasAnyPermission(
-      "can_view_transfers",
-    ),
+  transfers: () => hasAnyPermission("can_view_transfers"),
 
   // Finanzas
-  finance: () =>
-    hasAnyPermission(
-      "can_view_finance",
-    ),
+  finance: () => hasAnyPermission("can_view_finance"),
 
   // Evaluaciones
-  evaluations: () =>
-    hasAnyPermission(
-      "can_view_evaluations",
-    ),
+  evaluations: () => hasAnyPermission("can_view_evaluations"),
 
   // Reportes
-  reports: () =>
-    hasAnyPermission(
-      "can_view_reports",
-    ),
+  reports: () => hasAnyPermission("can_view_reports"),
 
   // Documentos
   documents: () =>
-    hasAnyPermission(
-      "can_manage_purchase_orders",
-      "can_manage_inventory",
-    ),
+    hasAnyPermission("can_manage_purchase_orders", "can_manage_inventory"),
 
   // Notificaciones
   notifications: () => true,
@@ -314,16 +300,10 @@ const VISIBILITY = {
     ),
 
   // Auditoría
-  audit: () =>
-    hasAnyPermission(
-      "can_view_audit",
-    ),
+  audit: () => hasAnyPermission("can_view_audit"),
 
   // Carga de documentos
-  "document-preview": () =>
-    hasAnyPermission(
-      "can_access_document_preview",
-    ),
+  "document-preview": () => hasAnyPermission("can_access_document_preview"),
 };
 
 // Grupos con solo los ítems que el usuario tiene permiso de ver
