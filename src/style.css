@@ -107,7 +107,10 @@
     left: 0;
     width: 100%;
     height: 100%;
-    z-index: 0;
+    /* Iba en z-index 0 y, al estar posicionada, se pintaba POR ENCIMA de las
+       tarjetas: se veía la marca cruzando las tablas y los gráficos. Detrás
+       del contenido y delante del fondo es -1. */
+    z-index: -1;
     pointer-events: none;
     background-image: url('/marca-agua.png');
     background-position: center;
