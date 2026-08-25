@@ -11,6 +11,11 @@ import {
   XCircle,
   Truck,
   AlertTriangle,
+  MoreVertical,
+  Trash2,
+  ShieldCheck,
+  X,
+  Lock,
 } from "lucide-vue-next";
 import { purchasingApi } from "@/api/purchasing.api";
 import { optionsApi } from "@/api/options.api";
@@ -226,9 +231,10 @@ const poColumns = [
 ];
 const poList = useList(purchasingApi.listPurchaseOrders);
 const showPOModal = ref(false);
-const editingPO = ref(null);
-const poActionLoading = ref(false);
+const showPOActionModal = ref(false);
+const activePORow = ref(null);
 const poActionError = ref("");
+const poActionLoading = ref(false);
 
 const emptyPOForm = {
   order_number: "",
@@ -761,7 +767,7 @@ async function handleConvert() {
   try {
     const payload = {
       supplier_uuid: convertForm.value.supplier,
-      tax_rate: convertForm.value.tax_rate,
+      tax_rate: convertForm.value.tax_rate / 100,
     };
     if (convertForm.value.expected_delivery_date)
       payload.expected_delivery_date = convertForm.value.expected_delivery_date;
@@ -1180,109 +1186,15 @@ function fmtDate(val) {
         /></template>
         <template #total_amount="{ row }">{{ fmt(row.total_amount) }}</template>
         <template #actions="{ row }">
-          <div class="flex gap-1 justify-end">
-
-            <!-- Ver -->
-            <button
-              v-if="canViewPurchaseOrders"
-              class="p-1 rounded hover:bg-muted"
-              title="Ver ítems"
-              @click="openPODetail(row)"
-            >
-              <Eye :size="16" />
-            </button>
-
-            <!-- Editar -->
-            <button
-              v-if="canEditPurchaseOrders"
-              class="p-1 rounded hover:bg-muted"
-              title="Editar"
-              @click="
-                editingPO = row;
-                poFill({ ...row });
-                poActionError = '';
-                showPOModal = true;
-              "
-            >
-              <Pencil :size="16" />
-            </button>
-
-            <!-- Eliminar -->
-            <button
-              v-if="canDeletePurchaseOrders"
-              class="p-1 rounded hover:bg-muted text-destructive"
-              title="Eliminar"
-              @click="deletePO = row"
-            >
-              <XCircle :size="16" />
-            </button>
-
-            <!-- Enviar a aprobación -->
-            <button
-              v-if="
-                canEditPurchaseOrders &&
-                row.status === 'BORRADOR'
-              "
-              class="p-1 rounded hover:bg-muted"
-              title="Enviar a aprobación"
-              @click="poAction('sendToApproval', row)"
-            >
-              <Send :size="16" />
-            </button>
-
-            <!-- Aprobar -->
-            <button
-              v-if="
-                canEditPurchaseOrders &&
-                row.status === 'EN_APROBACION'
-              "
-              class="p-1 rounded hover:bg-muted"
-              title="Aprobar orden"
-              @click="poAction('approve', row)"
-            >
-              <CheckCircle :size="16" />
-            </button>
-
-            <!-- Enviar proveedor -->
-            <button
-              v-if="
-                canEditPurchaseOrders &&
-                row.status === 'APROBADA'
-              "
-              class="p-1 rounded hover:bg-muted"
-              title="Enviar a proveedor"
-              @click="poAction('send', row)"
-            >
-              <Truck :size="16" />
-            </button>
-
-            <!-- Cancelar -->
-            <button
-              v-if="
-                canEditPurchaseOrders &&
-                !['CANCELADA', 'CERRADA', 'RECIBIDA'].includes(row.status)
-              "
-              class="p-1 rounded hover:bg-muted"
-              title="Cancelar"
-              @click="poAction('cancel', row)"
-            >
-              <XCircle :size="16" />
-            </button>
-
-            <!-- Cerrar -->
-            <button
-              v-if="
-                canEditPurchaseOrders &&
-                row.status === 'RECIBIDA'
-              "
-              class="p-1 rounded hover:bg-muted"
-              title="Cerrar OC"
-              @click="poAction('close', row)"
-            >
-              <CheckCircle :size="16" />
-            </button>
-
-          </div>
+          <button
+            class="grid place-items-center w-9 h-9 border border-border rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
+            @click="
+              activePORow = row;
+              showPOActionModal = true;
+            "
+          >
+            <MoreVertical :size="16" />
+          </button>
         </template>
       </AppTable>
       <AppPagination
@@ -1748,6 +1660,89 @@ function fmtDate(val) {
           </button>
         </div>
       </form>
+    </AppModal>
+
+    <!-- ══ MODAL: Acciones de orden de compra ══ -->
+    <AppModal
+      v-if="showPOActionModal && activePORow"
+      title="Acciones"
+      size="sm"
+      @close="showPOActionModal = false"
+    >
+      <div class="grid gap-2">
+        <button
+          v-if="canViewPurchaseOrders"
+          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+          @click="openPODetail(activePORow); showPOActionModal = false;"
+        >
+          <Eye :size="16" /> Ver ítems
+        </button>
+        <button
+          v-if="canEditPurchaseOrders"
+          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+          @click="
+            editingPO = activePORow;
+            poFill({ ...activePORow });
+            poActionError = '';
+            showPOModal = true;
+            showPOActionModal = false;
+          "
+        >
+          <Pencil :size="16" /> Editar
+        </button>
+        <button
+          v-if="canDeletePurchaseOrders"
+          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium text-destructive"
+          @click="deletePO = activePORow; showPOActionModal = false;"
+        >
+          <Trash2 :size="16" /> Eliminar
+        </button>
+        <button
+          v-if="canEditPurchaseOrders && activePORow.status === 'BORRADOR'"
+          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+          @click="poAction('sendToApproval', activePORow); showPOActionModal = false;"
+        >
+          <Send :size="16" /> Enviar a aprobación
+        </button>
+        <button
+          v-if="canEditPurchaseOrders && activePORow.status === 'EN_APROBACION'"
+          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+          @click="poAction('approve', activePORow); showPOActionModal = false;"
+        >
+          <ShieldCheck :size="16" /> Aprobar
+        </button>
+        <button
+          v-if="canEditPurchaseOrders && activePORow.status === 'EN_APROBACION'"
+          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium text-destructive"
+          @click="poAction('reject', activePORow); showPOActionModal = false;"
+        >
+          <X :size="16" /> Rechazar
+        </button>
+        <button
+          v-if="canEditPurchaseOrders && activePORow.status === 'APROBADA'"
+          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+          @click="poAction('sendToSupplier', activePORow); showPOActionModal = false;"
+        >
+          <Send :size="16" /> Enviar a proveedor
+        </button>
+        <button
+          v-if="
+            canEditPurchaseOrders &&
+            !['RECIBIDA', 'CERRADA', 'CANCELADA'].includes(activePORow.status)
+          "
+          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium text-destructive"
+          @click="poAction('cancel', activePORow); showPOActionModal = false;"
+        >
+          <XCircle :size="16" /> Cancelar
+        </button>
+        <button
+          v-if="canEditPurchaseOrders && activePORow.status === 'RECIBIDA'"
+          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+          @click="poAction('close', activePORow); showPOActionModal = false;"
+        >
+          <Lock :size="16" /> Cerrar
+        </button>
+      </div>
     </AppModal>
 
     <!-- ══ MODAL: Nueva recepción ══ -->
