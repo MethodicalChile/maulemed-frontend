@@ -27,6 +27,8 @@ const TransfersView = () => import("@/views/transfers/TransfersView.vue");
 
 const FinanceView = () => import("@/views/finance/FinanceView.vue");
 
+const RevenueView = () => import("@/views/revenue/RevenueView.vue");
+
 const AuditView = () => import("@/views/audit/AuditView.vue");
 
 const UsersView = () => import("@/views/users/UsersView.vue");
@@ -37,13 +39,15 @@ const ReportsView = () => import("@/views/reports/ReportsView.vue");
 
 const DocumentsView = () => import("@/views/documents/DocumentsView.vue");
 
-const DocumentPreviewView = () => import("@/views/documents/DocumentPreviewView.vue");
+const DocumentPreviewView = () =>
+  import("@/views/documents/DocumentPreviewView.vue");
 
 const EvaluationsView = () => import("@/views/evaluations/EvaluationsView.vue");
 
 const ForbiddenView = () => import("@/views/errors/ForbiddenView.vue");
 
-const ProductPriceHistoryView = () => import("@/views/products/ProductPriceHistoryView.vue");
+const ProductPriceHistoryView = () =>
+  import("@/views/products/ProductPriceHistoryView.vue");
 
 const routes = [
   {
@@ -154,6 +158,15 @@ const routes = [
         component: FinanceView,
         meta: {
           title: "Finanzas",
+          permission: "can_view_finance",
+        },
+      },
+      {
+        path: "revenue",
+        name: "revenue",
+        component: RevenueView,
+        meta: {
+          title: "Ingresos",
           permission: "can_view_finance",
         },
       },
@@ -311,9 +324,7 @@ function checkPermission(authStore, key) {
   // Para cada clave de ruta, lista los permisos que dan acceso (OR).
   const accessMap = {
     // Dashboard
-    can_view_dashboard: [
-      "can_view_dashboard",
-    ],
+    can_view_dashboard: ["can_view_dashboard"],
 
     // Organización
     can_view_organizations: [
@@ -334,9 +345,7 @@ function checkPermission(authStore, key) {
       "can_view_products",
     ],
 
-    can_manage_catalogs: [
-      "can_manage_catalogs",
-    ],
+    can_manage_catalogs: ["can_manage_catalogs"],
 
     // Proveedores
     can_view_suppliers: [
@@ -350,9 +359,7 @@ function checkPermission(authStore, key) {
     ],
 
     // Carga de documentos
-    can_access_document_preview: [
-      "can_access_document_preview",
-    ],
+    can_access_document_preview: ["can_access_document_preview"],
 
     // Compras - acceso general al módulo
     can_view_purchasing: [
@@ -363,9 +370,7 @@ function checkPermission(authStore, key) {
     ],
 
     // Solicitudes de compra
-    can_view_supply_requests: [
-      "can_view_supply_requests",
-    ],
+    can_view_supply_requests: ["can_view_supply_requests"],
 
     can_create_supply_request: [
       "can_create_supply_request",
@@ -373,56 +378,32 @@ function checkPermission(authStore, key) {
       "can_receive_purchase",
     ],
 
-    can_edit_supply_request: [
-      "can_edit_supply_request",
-    ],
+    can_edit_supply_request: ["can_edit_supply_request"],
 
-    can_approve_supply_request: [
-      "can_approve_supply_request",
-    ],
+    can_approve_supply_request: ["can_approve_supply_request"],
 
     // Órdenes de compra
-    can_view_purchase_orders: [
-      "can_view_purchase_orders",
-    ],
+    can_view_purchase_orders: ["can_view_purchase_orders"],
 
-    can_create_purchase_order: [
-      "can_create_purchase_order",
-    ],
+    can_create_purchase_order: ["can_create_purchase_order"],
 
-    can_edit_purchase_order: [
-      "can_edit_purchase_order",
-    ],
+    can_edit_purchase_order: ["can_edit_purchase_order"],
 
-    can_delete_purchase_order: [
-      "can_delete_purchase_order",
-    ],
+    can_delete_purchase_order: ["can_delete_purchase_order"],
 
-    can_receive_purchase: [
-      "can_receive_purchase",
-    ],
+    can_receive_purchase: ["can_receive_purchase"],
 
     // Traspasos
-    can_view_transfers: [
-      "can_view_transfers",
-    ],
+    can_view_transfers: ["can_view_transfers"],
 
-    can_create_transfers: [
-      "can_create_transfers",
-    ],
+    can_create_transfers: ["can_create_transfers"],
 
-    can_edit_transfers: [
-      "can_edit_transfers",
-    ],
+    can_edit_transfers: ["can_edit_transfers"],
 
-    can_delete_transfers: [
-      "can_delete_transfers",
-    ],
+    can_delete_transfers: ["can_delete_transfers"],
 
     // Finanzas
-    can_view_finance: [
-      "can_view_finance",
-    ],
+    can_view_finance: ["can_view_finance"],
 
     // Documentos / órdenes de compra legacy
     can_manage_purchase_orders: [
@@ -434,19 +415,13 @@ function checkPermission(authStore, key) {
     ],
 
     // Evaluaciones
-    can_view_evaluations: [
-      "can_view_evaluations",
-    ],
+    can_view_evaluations: ["can_view_evaluations"],
 
     // Reportes
-    can_view_reports: [
-      "can_view_reports",
-    ],
+    can_view_reports: ["can_view_reports"],
 
     // Auditoría
-    can_view_audit: [
-      "can_view_audit",
-    ],
+    can_view_audit: ["can_view_audit"],
 
     // Usuarios
     can_view_users: [
@@ -479,9 +454,7 @@ function checkPermission(authStore, key) {
 
   const allowed = accessMap[key] ?? [key];
 
-  return allowed.some((permission) =>
-    Boolean(permissions[permission]),
-  );
+  return allowed.some((permission) => Boolean(permissions[permission]));
 }
 
 router.afterEach((to) => {

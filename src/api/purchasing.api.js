@@ -9,6 +9,7 @@ const BASE = {
   purchaseReceipts: "/purchase-receipts",
   purchaseReceiptItems: "/purchase-receipt-items",
   supplierClaims: "/supplier-claims",
+  approvalRules: "/approval-rules",
 };
 
 export const purchasingApi = {
@@ -23,6 +24,9 @@ export const purchasingApi = {
   // Supply Request actions
   submitSupplyRequest: (uuid) =>
     http.post(`${BASE.supplyRequests}/${uuid}/submit/`),
+  // Saldo del centro de costo frente al costo estimado de la solicitud
+  budgetCheckSupplyRequest: (uuid) =>
+    http.get(`${BASE.supplyRequests}/${uuid}/budget-check/`),
   approveSupplyRequest: (uuid) =>
     http.post(`${BASE.supplyRequests}/${uuid}/approve/`),
   rejectSupplyRequest: (uuid, data) =>
@@ -100,4 +104,11 @@ export const purchasingApi = {
   createSupplierClaim: (data) => http.post(BASE.supplierClaims + "/", data),
   updateSupplierClaim: (uuid, data) =>
     http.patch(`${BASE.supplierClaims}/${uuid}/`, data),
+
+  // Umbrales de aprobación por monto
+  listApprovalRules: (params) => http.get(BASE.approvalRules + "/", { params }),
+  createApprovalRule: (data) => http.post(BASE.approvalRules + "/", data),
+  updateApprovalRule: (uuid, data) =>
+    http.patch(`${BASE.approvalRules}/${uuid}/`, data),
+  deleteApprovalRule: (uuid) => http.delete(`${BASE.approvalRules}/${uuid}/`),
 };

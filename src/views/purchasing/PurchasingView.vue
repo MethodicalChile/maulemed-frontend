@@ -11,11 +11,6 @@ import {
   XCircle,
   Truck,
   AlertTriangle,
-  MoreVertical,
-  Trash2,
-  ShieldCheck,
-  X,
-  Lock,
 } from "lucide-vue-next";
 import { purchasingApi } from "@/api/purchasing.api";
 import { optionsApi } from "@/api/options.api";
@@ -111,10 +106,7 @@ const tabs = computed(() => {
 const activeTab = ref("");
 
 const headerButton = computed(() => {
-  if (
-    activeTab.value === "Solicitudes" &&
-    canCreateSupplyRequest.value
-  ) {
+  if (activeTab.value === "Solicitudes" && canCreateSupplyRequest.value) {
     return {
       label: "Nueva solicitud",
       action: openCreateSR,
@@ -131,20 +123,14 @@ const headerButton = computed(() => {
     };
   }
 
-  if (
-    activeTab.value === "Recepciones" &&
-    canCreatePurchaseReceipts.value
-  ) {
+  if (activeTab.value === "Recepciones" && canCreatePurchaseReceipts.value) {
     return {
       label: "Nueva recepción",
       action: openCreateReceipt,
     };
   }
 
-  if (
-    activeTab.value === "Reclamos" &&
-    canCreateSupplierClaims.value
-  ) {
+  if (activeTab.value === "Reclamos" && canCreateSupplierClaims.value) {
     return {
       label: "Nuevo reclamo",
       action: openCreateClaim,
@@ -231,10 +217,9 @@ const poColumns = [
 ];
 const poList = useList(purchasingApi.listPurchaseOrders);
 const showPOModal = ref(false);
-const showPOActionModal = ref(false);
-const activePORow = ref(null);
-const poActionError = ref("");
+const editingPO = ref(null);
 const poActionLoading = ref(false);
+const poActionError = ref("");
 
 const emptyPOForm = {
   order_number: "",
@@ -288,9 +273,7 @@ function openEditReceipt(row) {
     branch: row.branch ?? "",
     warehouse: row.warehouse ?? "",
     status: row.status ?? "RECIBIDO_OK",
-    received_at: row.received_at
-      ? row.received_at.slice(0, 16)
-      : "",
+    received_at: row.received_at ? row.received_at.slice(0, 16) : "",
     comments: row.comments ?? "",
   });
 
@@ -314,10 +297,7 @@ const {
   submit: receiptSubmit,
 } = useForm(emptyReceiptForm, (data) =>
   editingReceipt.value
-    ? purchasingApi.updatePurchaseReceipt(
-        editingReceipt.value.uuid,
-        data,
-      )
+    ? purchasingApi.updatePurchaseReceipt(editingReceipt.value.uuid, data)
     : purchasingApi.createPurchaseReceipt(data),
 );
 
@@ -459,7 +439,6 @@ function openEditClaim(row) {
   showClaimModal.value = true;
 }
 
-
 async function handleClaimSubmit() {
   if (editingClaim.value) {
     if (!canEditSupplierClaims.value) return;
@@ -486,16 +465,13 @@ async function confirmDeleteClaim() {
   claimActionError.value = "";
 
   try {
-    await purchasingApi.deleteSupplierClaim(
-      deleteClaim.value.uuid,
-    );
+    await purchasingApi.deleteSupplierClaim(deleteClaim.value.uuid);
 
     deleteClaim.value = null;
     await claimList.load();
   } catch (e) {
     claimActionError.value =
-      e.response?.data?.message ??
-      "Error al eliminar reclamo";
+      e.response?.data?.message ?? "Error al eliminar reclamo";
   } finally {
     deleteClaimLoading.value = false;
   }
@@ -514,19 +490,15 @@ async function updateClaimStatus(newStatus) {
   claimActionError.value = "";
 
   try {
-    await purchasingApi.updateSupplierClaim(
-      viewingClaim.value.uuid,
-      {
-        status: newStatus,
-      },
-    );
+    await purchasingApi.updateSupplierClaim(viewingClaim.value.uuid, {
+      status: newStatus,
+    });
 
     showClaimDetail.value = false;
     claimList.load();
   } catch (e) {
     claimActionError.value =
-      e.response?.data?.message ??
-      "Error al actualizar estado";
+      e.response?.data?.message ?? "Error al actualizar estado";
   }
 }
 
@@ -554,9 +526,7 @@ onMounted(async () => {
 
     const d = res.value.data?.data ?? res.value.data;
 
-    return Array.isArray(d)
-      ? d
-      : (d?.results ?? []);
+    return Array.isArray(d) ? d : (d?.results ?? []);
   };
 
   branches.value = extract(brRes);
@@ -603,9 +573,33 @@ async function handleSRCreate() {
   }
 }
 
+// Saldo del centro de costo frente al costo estimado de la solicitud. Es el
+// control que hoy no existe: la compra se decide sin saber si hay presupuesto.
+const srBudget = ref(null);
+
+async function loadSRBudget(uuid) {
+  srBudget.value = null;
+  try {
+    const res = await purchasingApi.budgetCheckSupplyRequest(uuid);
+    srBudget.value = res.data?.data ?? null;
+  } catch {
+    srBudget.value = null;
+  }
+}
+
+function fmtMoney(value) {
+  if (value == null) return "—";
+  return new Intl.NumberFormat("es-CL", {
+    style: "currency",
+    currency: "CLP",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
 async function openSRDetail(row) {
   srActionError.value = "";
   viewingSR.value = row;
+  loadSRBudget(row.uuid);
   // cargar ítems actualizados
   try {
     const res = await purchasingApi.getSupplyRequest(row.uuid);
@@ -661,10 +655,7 @@ async function removeSRItem(itemUuid) {
 async function srAction(action) {
   if (!viewingSR.value) return;
 
-  if (
-    action === "submit" &&
-    !canCreateSupplyRequest.value
-  ) {
+  if (action === "submit" && !canCreateSupplyRequest.value) {
     return;
   }
 
@@ -680,27 +671,19 @@ async function srAction(action) {
 
   try {
     const map = {
-      submit: () =>
-        purchasingApi.submitSupplyRequest(
-          viewingSR.value.uuid,
-        ),
+      submit: () => purchasingApi.submitSupplyRequest(viewingSR.value.uuid),
 
-      approve: () =>
-        purchasingApi.approveSupplyRequest(
-          viewingSR.value.uuid,
-        ),
+      approve: () => purchasingApi.approveSupplyRequest(viewingSR.value.uuid),
 
       reject: () =>
-        purchasingApi.rejectSupplyRequest(
-          viewingSR.value.uuid,
-          { comments: "" },
-        ),
+        purchasingApi.rejectSupplyRequest(viewingSR.value.uuid, {
+          comments: "",
+        }),
 
       observe: () =>
-        purchasingApi.observeSupplyRequest(
-          viewingSR.value.uuid,
-          { comments: "" },
-        ),
+        purchasingApi.observeSupplyRequest(viewingSR.value.uuid, {
+          comments: "",
+        }),
     };
 
     await map[action]();
@@ -709,8 +692,7 @@ async function srAction(action) {
     srList.load();
   } catch (e) {
     srActionError.value =
-      e.response?.data?.message ??
-      "Error al ejecutar acción";
+      e.response?.data?.message ?? "Error al ejecutar acción";
   } finally {
     srActionLoading.value = false;
   }
@@ -726,9 +708,7 @@ async function confirmDeletePO() {
   deletePOLoading.value = true;
 
   try {
-    await purchasingApi.deletePurchaseOrder(
-      deletePO.value.uuid,
-    );
+    await purchasingApi.deletePurchaseOrder(deletePO.value.uuid);
 
     deletePO.value = null;
 
@@ -767,7 +747,7 @@ async function handleConvert() {
   try {
     const payload = {
       supplier_uuid: convertForm.value.supplier,
-      tax_rate: convertForm.value.tax_rate / 100,
+      tax_rate: convertForm.value.tax_rate,
     };
     if (convertForm.value.expected_delivery_date)
       payload.expected_delivery_date = convertForm.value.expected_delivery_date;
@@ -825,40 +805,24 @@ async function poAction(action, row) {
   try {
     const map = {
       sendToApproval: () =>
-        purchasingApi.updatePurchaseOrder(
-          row.uuid,
-          {
-            status: "EN_APROBACION",
-          },
-        ),
+        purchasingApi.updatePurchaseOrder(row.uuid, {
+          status: "EN_APROBACION",
+        }),
 
-      approve: () =>
-        purchasingApi.approvePurchaseOrder(
-          row.uuid,
-        ),
+      approve: () => purchasingApi.approvePurchaseOrder(row.uuid),
 
-      send: () =>
-        purchasingApi.sendPurchaseOrder(
-          row.uuid,
-        ),
+      send: () => purchasingApi.sendPurchaseOrder(row.uuid),
 
-      cancel: () =>
-        purchasingApi.cancelPurchaseOrder(
-          row.uuid,
-        ),
+      cancel: () => purchasingApi.cancelPurchaseOrder(row.uuid),
 
-      close: () =>
-        purchasingApi.closePurchaseOrder(
-          row.uuid,
-        ),
+      close: () => purchasingApi.closePurchaseOrder(row.uuid),
     };
 
     await map[action]();
     poList.load();
   } catch (e) {
     poActionError.value =
-      e.response?.data?.message ??
-      "Error al ejecutar acción";
+      e.response?.data?.message ?? "Error al ejecutar acción";
   } finally {
     poActionLoading.value = false;
   }
@@ -929,7 +893,6 @@ async function addReceiptItem() {
 async function removeReceiptItem(itemUuid) {
   if (!canEditPurchaseReceipts.value) return;
 
-
   receiptItemLoading.value = true;
   try {
     await purchasingApi.deletePurchaseReceiptItem(itemUuid);
@@ -979,16 +942,13 @@ async function confirmDeleteReceipt() {
   receiptActionError.value = "";
 
   try {
-    await purchasingApi.deletePurchaseReceipt(
-      deleteReceipt.value.uuid,
-    );
+    await purchasingApi.deletePurchaseReceipt(deleteReceipt.value.uuid);
 
     deleteReceipt.value = null;
     await receiptList.load();
   } catch (e) {
     receiptActionError.value =
-      e.response?.data?.message ??
-      "Error al eliminar recepción";
+      e.response?.data?.message ?? "Error al eliminar recepción";
   } finally {
     deleteReceiptLoading.value = false;
   }
@@ -1004,8 +964,7 @@ async function processReceipt(row) {
     receiptList.load();
   } catch (e) {
     receiptActionError.value =
-      e.response?.data?.message ??
-      "Error al procesar recepción";
+      e.response?.data?.message ?? "Error al procesar recepción";
   }
 }
 
@@ -1039,10 +998,7 @@ function fmtDate(val) {
         </button>
       </template>
       <template
-        v-else-if="
-          activeTab === 'Órdenes de Compra' &&
-          canCreatePurchaseOrders
-        "
+        v-else-if="activeTab === 'Órdenes de Compra' && canCreatePurchaseOrders"
       >
         <button
           class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all"
@@ -1052,10 +1008,7 @@ function fmtDate(val) {
         </button>
       </template>
       <template
-        v-else-if="
-          activeTab === 'Recepciones' &&
-          canCreatePurchaseReceipts
-        "
+        v-else-if="activeTab === 'Recepciones' && canCreatePurchaseReceipts"
       >
         <button
           class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all"
@@ -1064,12 +1017,7 @@ function fmtDate(val) {
           <Plus :size="16" /> Nueva recepción
         </button>
       </template>
-      <template
-        v-else-if="
-          activeTab === 'Reclamos' &&
-          canCreateSupplierClaims
-        "
-      >
+      <template v-else-if="activeTab === 'Reclamos' && canCreateSupplierClaims">
         <button
           class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all"
           @click="openCreateClaim"
@@ -1186,15 +1134,95 @@ function fmtDate(val) {
         /></template>
         <template #total_amount="{ row }">{{ fmt(row.total_amount) }}</template>
         <template #actions="{ row }">
-          <button
-            class="grid place-items-center w-9 h-9 border border-border rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
-            @click="
-              activePORow = row;
-              showPOActionModal = true;
-            "
-          >
-            <MoreVertical :size="16" />
-          </button>
+          <div class="flex gap-1 justify-end">
+            <!-- Ver -->
+            <button
+              v-if="canViewPurchaseOrders"
+              class="p-1 rounded hover:bg-muted"
+              title="Ver ítems"
+              @click="openPODetail(row)"
+            >
+              <Eye :size="16" />
+            </button>
+
+            <!-- Editar -->
+            <button
+              v-if="canEditPurchaseOrders"
+              class="p-1 rounded hover:bg-muted"
+              title="Editar"
+              @click="
+                editingPO = row;
+                poFill({ ...row });
+                poActionError = '';
+                showPOModal = true;
+              "
+            >
+              <Pencil :size="16" />
+            </button>
+
+            <!-- Eliminar -->
+            <button
+              v-if="canDeletePurchaseOrders"
+              class="p-1 rounded hover:bg-muted text-destructive"
+              title="Eliminar"
+              @click="deletePO = row"
+            >
+              <XCircle :size="16" />
+            </button>
+
+            <!-- Enviar a aprobación -->
+            <button
+              v-if="canEditPurchaseOrders && row.status === 'BORRADOR'"
+              class="p-1 rounded hover:bg-muted"
+              title="Enviar a aprobación"
+              @click="poAction('sendToApproval', row)"
+            >
+              <Send :size="16" />
+            </button>
+
+            <!-- Aprobar -->
+            <button
+              v-if="canEditPurchaseOrders && row.status === 'EN_APROBACION'"
+              class="p-1 rounded hover:bg-muted"
+              title="Aprobar orden"
+              @click="poAction('approve', row)"
+            >
+              <CheckCircle :size="16" />
+            </button>
+
+            <!-- Enviar proveedor -->
+            <button
+              v-if="canEditPurchaseOrders && row.status === 'APROBADA'"
+              class="p-1 rounded hover:bg-muted"
+              title="Enviar a proveedor"
+              @click="poAction('send', row)"
+            >
+              <Truck :size="16" />
+            </button>
+
+            <!-- Cancelar -->
+            <button
+              v-if="
+                canEditPurchaseOrders &&
+                !['CANCELADA', 'CERRADA', 'RECIBIDA'].includes(row.status)
+              "
+              class="p-1 rounded hover:bg-muted"
+              title="Cancelar"
+              @click="poAction('cancel', row)"
+            >
+              <XCircle :size="16" />
+            </button>
+
+            <!-- Cerrar -->
+            <button
+              v-if="canEditPurchaseOrders && row.status === 'RECIBIDA'"
+              class="p-1 rounded hover:bg-muted"
+              title="Cerrar OC"
+              @click="poAction('close', row)"
+            >
+              <CheckCircle :size="16" />
+            </button>
+          </div>
         </template>
       </AppTable>
       <AppPagination
@@ -1243,7 +1271,6 @@ function fmtDate(val) {
         }}</template>
         <template #actions="{ row }">
           <div class="flex gap-1 justify-end">
-
             <!-- Ver -->
             <button
               v-if="canViewPurchaseReceipts"
@@ -1276,17 +1303,13 @@ function fmtDate(val) {
 
             <!-- Procesar -->
             <button
-              v-if="
-                canProcessPurchaseReceipts &&
-                row.status !== 'PROCESADO'
-              "
+              v-if="canProcessPurchaseReceipts && row.status !== 'PROCESADO'"
               class="p-1 rounded hover:bg-muted"
               title="Procesar recepción"
               @click="processReceipt(row)"
             >
               <Truck :size="16" />
             </button>
-
           </div>
         </template>
       </AppTable>
@@ -1342,7 +1365,6 @@ function fmtDate(val) {
         <template #created_at="{ row }">{{ fmtDate(row.created_at) }}</template>
         <template #actions="{ row }">
           <div class="flex gap-1 justify-end">
-
             <!-- Ver -->
             <button
               v-if="canViewSupplierClaims"
@@ -1372,7 +1394,6 @@ function fmtDate(val) {
             >
               <XCircle :size="16" />
             </button>
-
           </div>
         </template>
       </AppTable>
@@ -1457,6 +1478,38 @@ function fmtDate(val) {
 
         <AppAlert v-if="srActionError" type="error" :message="srActionError" />
 
+        <!-- Presupuesto del centro de costo -->
+        <div
+          v-if="srBudget"
+          class="sr-budget"
+          :class="
+            srBudget.found && !srBudget.within_budget ? 'sr-budget--over' : ''
+          "
+        >
+          <template v-if="srBudget.found">
+            <div class="sr-budget__row">
+              <span
+                ><strong>Disponible:</strong>
+                {{ fmtMoney(srBudget.available_amount) }}</span
+              >
+              <span
+                ><strong>Estimado:</strong>
+                {{ fmtMoney(srBudget.estimated_amount) }}</span
+              >
+              <span v-if="!srBudget.within_budget" class="sr-budget__warn"
+                >Excede por {{ fmtMoney(srBudget.shortfall_amount) }}</span
+              >
+            </div>
+            <p v-if="srBudget.estimate_is_partial" class="sr-budget__note">
+              Estimación parcial: hay precio de referencia para
+              {{ srBudget.priced_items }} de {{ srBudget.total_items }} ítems.
+            </p>
+          </template>
+          <p v-else class="sr-budget__note">
+            Sin presupuesto definido para esta sucursal y centro de costo.
+          </p>
+        </div>
+
         <!-- Ítems -->
         <h4 class="section-subtitle">Ítems solicitados</h4>
         <table v-if="srItems.length" class="mini-table">
@@ -1475,10 +1528,7 @@ function fmtDate(val) {
               <td>{{ item.justification ?? "—" }}</td>
               <td>
                 <button
-                  v-if="
-                    canEditSupplyRequest &&
-                    viewingSR.status === 'BORRADOR'
-                  "
+                  v-if="canEditSupplyRequest && viewingSR.status === 'BORRADOR'"
                   class="icon-btn"
                   title="Eliminar"
                   @click="removeSRItem(item.uuid)"
@@ -1493,10 +1543,7 @@ function fmtDate(val) {
 
         <!-- Agregar ítem (solo borrador) -->
         <template
-          v-if="
-            canEditSupplyRequest &&
-            viewingSR.status === 'BORRADOR'
-          "
+          v-if="canEditSupplyRequest && viewingSR.status === 'BORRADOR'"
         >
           <h4 class="section-subtitle">Agregar ítem</h4>
           <AppAlert v-if="srItemError" type="error" :message="srItemError" />
@@ -1584,10 +1631,7 @@ function fmtDate(val) {
             <AlertTriangle :size="14" /> Observar
           </button>
           <button
-            v-if="
-              canCreatePurchaseOrders &&
-              viewingSR.status === 'APROBADA'
-            "
+            v-if="canCreatePurchaseOrders && viewingSR.status === 'APROBADA'"
             type="button"
             class="btn btn--primary"
             :disabled="srActionLoading"
@@ -1660,89 +1704,6 @@ function fmtDate(val) {
           </button>
         </div>
       </form>
-    </AppModal>
-
-    <!-- ══ MODAL: Acciones de orden de compra ══ -->
-    <AppModal
-      v-if="showPOActionModal && activePORow"
-      title="Acciones"
-      size="sm"
-      @close="showPOActionModal = false"
-    >
-      <div class="grid gap-2">
-        <button
-          v-if="canViewPurchaseOrders"
-          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
-          @click="openPODetail(activePORow); showPOActionModal = false;"
-        >
-          <Eye :size="16" /> Ver ítems
-        </button>
-        <button
-          v-if="canEditPurchaseOrders"
-          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
-          @click="
-            editingPO = activePORow;
-            poFill({ ...activePORow });
-            poActionError = '';
-            showPOModal = true;
-            showPOActionModal = false;
-          "
-        >
-          <Pencil :size="16" /> Editar
-        </button>
-        <button
-          v-if="canDeletePurchaseOrders"
-          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium text-destructive"
-          @click="deletePO = activePORow; showPOActionModal = false;"
-        >
-          <Trash2 :size="16" /> Eliminar
-        </button>
-        <button
-          v-if="canEditPurchaseOrders && activePORow.status === 'BORRADOR'"
-          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
-          @click="poAction('sendToApproval', activePORow); showPOActionModal = false;"
-        >
-          <Send :size="16" /> Enviar a aprobación
-        </button>
-        <button
-          v-if="canEditPurchaseOrders && activePORow.status === 'EN_APROBACION'"
-          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
-          @click="poAction('approve', activePORow); showPOActionModal = false;"
-        >
-          <ShieldCheck :size="16" /> Aprobar
-        </button>
-        <button
-          v-if="canEditPurchaseOrders && activePORow.status === 'EN_APROBACION'"
-          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium text-destructive"
-          @click="poAction('reject', activePORow); showPOActionModal = false;"
-        >
-          <X :size="16" /> Rechazar
-        </button>
-        <button
-          v-if="canEditPurchaseOrders && activePORow.status === 'APROBADA'"
-          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
-          @click="poAction('sendToSupplier', activePORow); showPOActionModal = false;"
-        >
-          <Send :size="16" /> Enviar a proveedor
-        </button>
-        <button
-          v-if="
-            canEditPurchaseOrders &&
-            !['RECIBIDA', 'CERRADA', 'CANCELADA'].includes(activePORow.status)
-          "
-          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium text-destructive"
-          @click="poAction('cancel', activePORow); showPOActionModal = false;"
-        >
-          <XCircle :size="16" /> Cancelar
-        </button>
-        <button
-          v-if="canEditPurchaseOrders && activePORow.status === 'RECIBIDA'"
-          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
-          @click="poAction('close', activePORow); showPOActionModal = false;"
-        >
-          <Lock :size="16" /> Cerrar
-        </button>
-      </div>
     </AppModal>
 
     <!-- ══ MODAL: Nueva recepción ══ -->
@@ -1939,8 +1900,7 @@ function fmtDate(val) {
               <td>
                 <button
                   v-if="
-                    canEditPurchaseOrders &&
-                    viewingPO.status === 'BORRADOR'
+                    canEditPurchaseOrders && viewingPO.status === 'BORRADOR'
                   "
                   class="icon-btn"
                   title="Eliminar ítem"
@@ -1956,10 +1916,7 @@ function fmtDate(val) {
 
         <!-- Agregar ítem (solo cuando está en borrador) -->
         <template
-          v-if="
-            canEditPurchaseOrders &&
-            viewingPO.status === 'BORRADOR'
-          "
+          v-if="canEditPurchaseOrders && viewingPO.status === 'BORRADOR'"
         >
           <h4 class="section-subtitle">Agregar ítem</h4>
           <div class="inline-form">
@@ -2085,8 +2042,7 @@ function fmtDate(val) {
         <!-- Agregar producto (solo si no está procesado) -->
         <template
           v-if="
-            canEditPurchaseReceipts &&
-            viewingReceipt.status !== 'PROCESADO'
+            canEditPurchaseReceipts && viewingReceipt.status !== 'PROCESADO'
           "
         >
           <h4 class="section-subtitle">Agregar producto</h4>
@@ -2286,10 +2242,7 @@ function fmtDate(val) {
             Cerrar
           </button>
           <button
-                      v-if="
-            canEditSupplierClaims &&
-            viewingClaim.status === 'ABIERTO'
-          "
+            v-if="canEditSupplierClaims && viewingClaim.status === 'ABIERTO'"
             type="button"
             class="btn btn--primary"
             @click="updateClaimStatus('EN_GESTION')"
@@ -2367,6 +2320,31 @@ function fmtDate(val) {
   flex-wrap: wrap;
   font-size: 0.9rem;
   align-items: center;
+}
+.sr-budget {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+}
+.sr-budget--over {
+  border-color: rgb(217 119 6);
+  background: rgb(254 243 199 / 0.5);
+}
+.sr-budget__row {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.sr-budget__warn {
+  font-weight: 600;
+  color: rgb(180 83 9);
+}
+.sr-budget__note {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: var(--color-muted);
 }
 .section-subtitle {
   margin: 8px 0 4px;
