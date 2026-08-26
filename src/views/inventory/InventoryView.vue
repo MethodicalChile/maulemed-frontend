@@ -162,6 +162,9 @@ const emptyMovForm = {
   warehouse_origin: "",
   quantity: "",
   reason: "",
+  lot_number: "",
+  expiration_date: "",
+  supplier: "",
 };
 
 const {
@@ -173,6 +176,12 @@ const {
   () => {}, // submit manejado manualmente abajo
 );
 const movLoading = ref(false);
+
+const selectedMovementProduct = computed(() =>
+  allProducts.value.find(
+    (product) => product.uuid === movForm.product,
+  ),
+);
 
 async function handleMovSubmit() {
   movError.value = null;
@@ -193,10 +202,25 @@ async function handleMovSubmit() {
           : Math.abs(movForm.quantity);
       await inventoryApi.adjustStock({
         warehouse_uuid:
-          movForm.warehouse_origin || movForm.warehouse_destination,
+          movForm.warehouse_origin ||
+          movForm.warehouse_destination,
+
         product_uuid: movForm.product,
+
         quantity: qty,
-        reason: movForm.reason || "Ajuste manual",
+
+        reason:
+          movForm.reason ||
+          "Ajuste manual",
+
+        lot_number:
+          movForm.lot_number || null,
+
+        expiration_date:
+          movForm.expiration_date || null,
+
+        supplier_uuid:
+          movForm.supplier || null,
       });
     } else if (["EGRESO_CONSUMO", "MERMA", "VENCIMIENTO"].includes(type)) {
       await inventoryApi.decreaseStock({
@@ -917,6 +941,36 @@ const needsDestination = (type) => ["AJUSTE_POSITIVO"].includes(type);
             step="0.001"
             required
             class="w-full px-3 py-2 border rounded-md text-sm"
+          />
+        </FormField>
+        <FormField
+          v-if="
+            movForm.movement_type === 'AJUSTE_POSITIVO' &&
+            selectedMovementProduct?.requires_lot
+          "
+          label="Número de lote"
+          required
+        >
+          <AppInput
+            v-model="movForm.lot_number"
+            type="text"
+            placeholder="Ej: LOTE-001"
+            required
+          />
+        </FormField>
+
+        <FormField
+          v-if="
+            movForm.movement_type === 'AJUSTE_POSITIVO' &&
+            selectedMovementProduct?.requires_expiration_date
+          "
+          label="Fecha de vencimiento"
+          required
+        >
+          <AppInput
+            v-model="movForm.expiration_date"
+            type="date"
+            required
           />
         </FormField>
         <FormField label="Motivo" class="col-span-full">

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref, onMounted, onUnmounted, computed } from "vue";
 import {
   Plus,
   Eye,
@@ -8,6 +8,9 @@ import {
   Send,
   Truck,
   XCircle,
+  MoreVertical,
+  Pencil,
+  Trash2,
   Lock,
 } from "lucide-vue-next";
 import { transfersApi } from "@/api/transfers.api";
@@ -29,6 +32,58 @@ import AppMultiSelect from "@/components/common/AppMultiSelect.vue";
 import AppTextarea from "@/components/common/AppTextarea.vue";
 import ConfirmDialog from "@/components/common/ConfirmDialog.vue";
 
+const showTransferActionModal = ref(false);
+const activeTransferRow = ref(null);
+
+function openTransferActions(row) {
+  activeTransferRow.value = row;
+  showTransferActionModal.value = true;
+}
+
+function closeTransferActions() {
+  showTransferActionModal.value = false;
+  activeTransferRow.value = null;
+}
+
+function viewTransferFromActions() {
+  if (!activeTransferRow.value) return;
+
+  const row = activeTransferRow.value;
+
+  closeTransferActions();
+  openDetail(row);
+}
+
+const editingTransfer = ref(null);
+
+function editTransferFromActions() {
+  if (!activeTransferRow.value) return;
+
+  const row = activeTransferRow.value;
+
+  editingTransfer.value = row;
+
+  form.origin_branch =
+    row.origin_branch_detail?.uuid ??
+    row.origin_branch ??
+    "";
+
+  form.destination_branch =
+    row.destination_branch_detail?.uuid ??
+    row.destination_branch ??
+    "";
+
+  form.transfer_type =
+    row.transfer_type ?? "TRASPASO";
+
+  form.reason =
+    row.reason ?? "";
+
+  closeTransferActions();
+
+  showCreateModal.value = true;
+}
+
 const {
   canViewTransfers,
   canCreateTransfers,
@@ -43,7 +98,7 @@ const columns = [
   { key: "status", label: "Estado", width: "130px" },
   { key: "requested_by", label: "Solicitante" },
   { key: "requested_at", label: "Fecha", width: "110px" },
-  { key: "actions", label: "", width: "140px" },
+  { key: "actions", label: "", width: "70px" },
 ];
 
 const { items, loading, error, pagination, params, load, setPage, setParam } =
@@ -66,24 +121,34 @@ const TYPE_OPTIONS = [
 
 // ── Opciones ──────────────────────────────────────────────────────────────────
 const branches = ref([]);
-const warehouses = ref([]);
 const products = ref([]);
+const lots = ref([]);
 
 async function loadData() {
-  load();
-  const [brRes, whRes, prRes] = await Promise.allSettled([
-    optionsApi.getBranches(),
-    optionsApi.getWarehouses(),
-    optionsApi.getProducts(),
-  ]);
+  await load();
+
+  const [brRes, prRes, lotRes] =
+    await Promise.allSettled([
+      optionsApi.getBranches(),
+      optionsApi.getProducts(),
+      optionsApi.getInventoryLots(),
+    ]);
+
   const ext = (res) => {
     if (res.status !== "fulfilled") return [];
-    const d = res.value.data?.data ?? res.value.data;
-    return Array.isArray(d) ? d : (d.results ?? d);
+
+    const d =
+      res.value.data?.data ??
+      res.value.data;
+
+    return Array.isArray(d)
+      ? d
+      : (d?.results ?? []);
   };
+
   branches.value = ext(brRes);
-  warehouses.value = ext(whRes);
   products.value = ext(prRes);
+  lots.value = ext(lotRes);
 }
 
 const { setRefreshFunction, clearRefreshFunction } = useRefresh();
@@ -100,8 +165,6 @@ const createError = ref("");
 const emptyForm = {
   origin_branch: "",
   destination_branch: "",
-  origin_warehouse: "",
-  destination_warehouse: "",
   transfer_type: "TRASPASO",
   reason: "",
 };
@@ -113,17 +176,113 @@ const {
   submit,
 } = useForm(emptyForm, transfersApi.createTransfer);
 
+const showDeleteTransferDialog = ref(false);
+const transferToDelete = ref(null);
+const deleteTransferLoading = ref(false);
+const deleteTransferError = ref("");
+
+function deleteTransferFromActions() {
+  if (!activeTransferRow.value) return;
+
+  transferToDelete.value = activeTransferRow.value;
+  deleteTransferError.value = "";
+
+  closeTransferActions();
+
+  showDeleteTransferDialog.value = true;
+}
+
+function closeDeleteTransferDialog() {
+  if (deleteTransferLoading.value) return;
+
+  showDeleteTransferDialog.value = false;
+  transferToDelete.value = null;
+  deleteTransferError.value = "";
+}
+
+async function confirmDeleteTransfer() {
+  if (!transferToDelete.value) return;
+
+  deleteTransferLoading.value = true;
+
+  try {
+    await transfersApi.deleteTransfer(
+      transferToDelete.value.uuid,
+    );
+
+    showDeleteTransferDialog.value = false;
+    transferToDelete.value = null;
+
+    await load();
+  } catch (e) {
+    const data = e.response?.data;
+
+    console.error(
+      "Error eliminando traspaso:",
+      JSON.stringify(data, null, 2),
+    );
+
+    deleteTransferError.value =
+      data?.message ??
+      data?.detail ??
+      "No se pudo eliminar el traspaso.";
+  } finally {
+    deleteTransferLoading.value = false;
+  }
+}
+
 function openCreate() {
+  editingTransfer.value = null;
+
   reset();
+
   createError.value = "";
+
   showCreateModal.value = true;
 }
 
+function closeCreateModal() {
+  showCreateModal.value = false;
+  editingTransfer.value = null;
+  createError.value = "";
+}
+
 async function handleCreate() {
-  await submit();
-  if (!formError.value) {
-    showCreateModal.value = false;
-    load();
+  createError.value = "";
+
+  try {
+    if (editingTransfer.value) {
+      await transfersApi.updateTransfer(
+        editingTransfer.value.uuid,
+        {
+          origin_branch: form.origin_branch,
+          destination_branch: form.destination_branch,
+          transfer_type: form.transfer_type,
+          reason: form.reason,
+        },
+      );
+    } else {
+      await submit();
+    }
+
+    if (!formError.value) {
+      showCreateModal.value = false;
+      editingTransfer.value = null;
+
+      await load();
+    }
+  } catch (e) {
+    const data = e.response?.data;
+
+    console.error(
+      "Error guardando traspaso:",
+      JSON.stringify(data, null, 2),
+    );
+
+    createError.value =
+      data?.message ??
+      data?.detail ??
+      "No se pudo guardar el traspaso.";
   }
 }
 
@@ -141,7 +300,38 @@ const rejectLoading = ref(false);
 const rejectError = ref("");
 
 // Formulario inline para agregar ítems
-const itemForm = ref({ product: "", requested_quantity: 1 });
+const itemForm = ref({
+  product: "",
+  requested_quantity: 1,
+  lot: "",
+});
+
+const selectedTransferProduct = computed(() =>
+  products.value.find(
+    (product) =>
+      product.uuid === itemForm.value.product,
+  ),
+);
+
+const availableLots = computed(() =>
+  lots.value.filter((lot) => {
+    const productUuid =
+      lot.product ??
+      lot.product_uuid ??
+      lot.product_detail?.uuid;
+
+    const branchUuid =
+      lot.branch_uuid ??
+      lot.warehouse_detail?.branch?.uuid;
+
+    return (
+      productUuid === itemForm.value.product &&
+      branchUuid ===
+        viewingTransfer.value?.origin_branch_detail?.uuid
+    );
+  }),
+);
+
 const itemLoading = ref(false);
 const itemError = ref("");
 
@@ -161,18 +351,57 @@ async function openDetail(row) {
 
 async function addItem() {
   if (!viewingTransfer.value) return;
+
   itemError.value = "";
+
+  if (!itemForm.value.product) {
+    itemError.value = "Debes seleccionar un producto.";
+    return;
+  }
+
+  if (
+    !itemForm.value.requested_quantity ||
+    Number(itemForm.value.requested_quantity) <= 0
+  ) {
+    itemError.value = "La cantidad debe ser mayor a 0.";
+    return;
+  }
+
+  if (
+    selectedTransferProduct.value?.requires_lot &&
+    !itemForm.value.lot
+  ) {
+    itemError.value =
+      "Debes seleccionar un lote para este producto.";
+    return;
+  }
+
   itemLoading.value = true;
+
   try {
     await transfersApi.createItem({
       stock_transfer: viewingTransfer.value.uuid,
       product: itemForm.value.product,
-      requested_quantity: itemForm.value.requested_quantity,
+      requested_quantity:
+        itemForm.value.requested_quantity,
+      lot: itemForm.value.lot || null,
     });
-    itemForm.value = { product: "", requested_quantity: 1 };
+
+    itemForm.value = {
+      product: "",
+      requested_quantity: 1,
+      lot: "",
+    };
+
     await openDetail(viewingTransfer.value);
   } catch (e) {
-    itemError.value = e.response?.data?.message ?? "Error al agregar ítem";
+    const data = e.response?.data;
+
+    itemError.value =
+      data?.message ??
+      data?.detail ??
+      data?.lot?.[0] ??
+      "Error al agregar ítem";
   } finally {
     itemLoading.value = false;
   }
@@ -192,20 +421,121 @@ async function removeItem(uuid) {
 
 async function doAction(action) {
   if (!viewingTransfer.value) return;
+
   actionLoading.value = true;
   detailError.value = "";
+
   try {
     const map = {
-      approve: () => transfersApi.approveTransfer(viewingTransfer.value.uuid),
-      send: () => transfersApi.sendTransfer(viewingTransfer.value.uuid),
-      receive: () => transfersApi.receiveTransfer(viewingTransfer.value.uuid),
-      close: () => transfersApi.closeTransfer(viewingTransfer.value.uuid),
+      approve: () =>
+        transfersApi.approveTransfer(
+          viewingTransfer.value.uuid,
+        ),
+
+      send: () =>
+        transfersApi.sendTransfer(
+          viewingTransfer.value.uuid,
+        ),
+
+      receive: () =>
+        transfersApi.receiveTransfer(
+          viewingTransfer.value.uuid,
+        ),
+
+      close: () =>
+        transfersApi.closeTransfer(
+          viewingTransfer.value.uuid,
+        ),
     };
+
+    if (!map[action]) {
+      detailError.value = "Acción no válida.";
+      return;
+    }
+
     await map[action]();
+
     showDetailModal.value = false;
-    load();
+
+    await load();
   } catch (e) {
-    detailError.value = e.response?.data?.message ?? "Error al ejecutar acción";
+    const data = e.response?.data;
+
+    console.error(
+      "Error procesando traspaso:",
+      JSON.stringify(data, null, 2),
+    );
+
+    if (typeof data?.message === "string") {
+      detailError.value = data.message;
+      return;
+    }
+
+    if (typeof data?.detail === "string") {
+      detailError.value = data.detail;
+      return;
+    }
+
+    if (Array.isArray(data?.detail)) {
+      detailError.value = data.detail.join(" ");
+      return;
+    }
+
+    if (data?.errors && typeof data.errors === "object") {
+      const messages = Object.entries(data.errors).flatMap(
+        ([field, errors]) => {
+          const list = Array.isArray(errors)
+            ? errors
+            : [errors];
+
+          return list.map(
+            (message) => `${field}: ${message}`,
+          );
+        },
+      );
+
+      detailError.value =
+        messages.join(" ") ||
+        "No se pudo procesar el traspaso.";
+
+      return;
+    }
+
+    if (data && typeof data === "object") {
+      const messages = Object.entries(data).flatMap(
+        ([field, errors]) => {
+          if (
+            field === "status" ||
+            field === "success"
+          ) {
+            return [];
+          }
+
+          const list = Array.isArray(errors)
+            ? errors
+            : [errors];
+
+          return list
+            .filter(
+              (message) =>
+                typeof message === "string",
+            )
+            .map(
+              (message) =>
+                `${field}: ${message}`,
+            );
+        },
+      );
+
+      detailError.value =
+        messages.join(" ") ||
+        "No se pudo procesar el traspaso.";
+
+      return;
+    }
+
+    detailError.value =
+      "No se pudo procesar el traspaso.";
   } finally {
     actionLoading.value = false;
   }
@@ -343,18 +673,109 @@ function fmtQty(val) {
         fmtDate(row.requested_at)
       }}</template>
       <template #actions="{ row }">
-        <div class="flex gap-1 justify-end">
+        <div class="flex justify-end">
           <button
-            v-if="canViewTransfers"
-            class="p-1 rounded hover:bg-muted"
-            title="Ver detalle"
-            @click="openDetail(row)"
+            type="button"
+            class="
+              grid place-items-center
+              w-9 h-9
+              border border-border
+              rounded-md
+              text-muted-foreground
+              hover:bg-muted
+              hover:text-foreground
+              transition-colors
+            "
+            title="Acciones"
+            @click="openTransferActions(row)"
           >
-            <Eye :size="16" />
+            <MoreVertical :size="17" />
           </button>
         </div>
       </template>
     </AppTable>
+
+    <AppModal
+      v-if="showTransferActionModal && activeTransferRow"
+      title="Acciones del traspaso"
+      size="sm"
+      @close="closeTransferActions"
+    >
+      <div class="flex flex-col gap-2">
+        <button
+          v-if="canViewTransfers"
+          type="button"
+          class="
+            flex items-center gap-3
+            w-full px-4 py-3
+            text-sm text-left
+            rounded-md
+            hover:bg-muted
+          "
+          @click="viewTransferFromActions"
+        >
+          <Eye :size="17" />
+          Ver detalle
+        </button>
+
+        <button
+          v-if="
+            canEditTransfers &&
+            activeTransferRow.status === 'SOLICITADO'
+          "
+          type="button"
+          class="
+            flex items-center gap-3
+            w-full px-4 py-3
+            text-sm text-left
+            rounded-md
+            hover:bg-muted
+          "
+          @click="editTransferFromActions"
+        >
+          <Pencil :size="17" />
+          Editar
+        </button>
+
+        <button
+          v-if="
+            canDeleteTransfers &&
+            activeTransferRow.status === 'SOLICITADO'
+          "
+          type="button"
+          class="
+            flex items-center gap-3
+            w-full px-4 py-3
+            text-sm text-left
+            rounded-md
+            text-destructive
+            hover:bg-destructive/10
+          "
+          @click="deleteTransferFromActions"
+        >
+          <Trash2 :size="17" />
+          Eliminar
+        </button>
+      </div>
+    </AppModal>
+
+    <AppAlert
+      v-if="showDeleteTransferDialog && deleteTransferError"
+      type="error"
+      :message="deleteTransferError"
+    />
+
+    <ConfirmDialog
+      v-if="showDeleteTransferDialog && transferToDelete"
+      title="Eliminar traspaso"
+      :message="`¿Está seguro de eliminar el traspaso ${transferToDelete.origin_branch_detail?.name ?? ''} → ${transferToDelete.destination_branch_detail?.name ?? ''}? Esta acción no se puede deshacer.`"
+      confirm-label="Eliminar"
+      cancel-label="Cancelar"
+      variant="danger"
+      :loading="deleteTransferLoading"
+      @confirm="confirmDeleteTransfer"
+      @cancel="closeDeleteTransferDialog"
+    />
 
     <AppPagination
       :count="pagination.count"
@@ -366,15 +787,23 @@ function fmtQty(val) {
     <!-- ══ MODAL: Nuevo traspaso ══ -->
     <AppModal
       v-if="showCreateModal"
-      title="Nuevo traspaso"
+      :title="
+        editingTransfer
+          ? 'Editar traspaso'
+          : 'Nuevo traspaso'
+      "
       size="md"
-      @close="showCreateModal = false"
+      @close="closeCreateModal"
     >
       <form
         class="grid grid-cols-1 md:grid-cols-2 gap-4"
         @submit.prevent="handleCreate"
       >
-        <AppAlert v-if="formError" type="error" :message="formError" />
+        <AppAlert
+          v-if="formError || createError"
+          type="error"
+          :message="formError || createError"
+        />
         <FormField label="Sucursal origen" required class="col-span-full">
           <select
             v-model="form.origin_branch"
@@ -399,28 +828,6 @@ function fmtQty(val) {
             </option>
           </select>
         </FormField>
-        <FormField label="Bodega origen">
-          <select
-            v-model="form.origin_warehouse"
-            class="w-full px-3 py-2 border rounded-md text-sm"
-          >
-            <option value="">Sin bodega específica</option>
-            <option v-for="w in warehouses" :key="w.uuid" :value="w.uuid">
-              {{ w.name }}
-            </option>
-          </select>
-        </FormField>
-        <FormField label="Bodega destino">
-          <select
-            v-model="form.destination_warehouse"
-            class="w-full px-3 py-2 border rounded-md text-sm"
-          >
-            <option value="">Sin bodega específica</option>
-            <option v-for="w in warehouses" :key="w.uuid" :value="w.uuid">
-              {{ w.name }}
-            </option>
-          </select>
-        </FormField>
         <FormField label="Tipo" class="col-span-full">
           <select
             v-model="form.transfer_type"
@@ -441,7 +848,7 @@ function fmtQty(val) {
           <button
             type="button"
             class="px-4 py-2 text-sm font-medium border rounded-md hover:bg-muted"
-            @click="showCreateModal = false"
+            @click="closeCreateModal"
           >
             Cancelar
           </button>
@@ -450,7 +857,13 @@ function fmtQty(val) {
             class="px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
             :disabled="formLoading"
           >
-            {{ formLoading ? "Creando..." : "Crear traspaso" }}
+            {{
+              formLoading
+                ? "Guardando..."
+                : editingTransfer
+                  ? "Guardar cambios"
+                  : "Crear traspaso"
+            }}
           </button>
         </div>
       </form>
@@ -487,6 +900,7 @@ function fmtQty(val) {
           <thead>
             <tr>
               <th>Producto</th>
+              <th>Lote</th>
               <th>Solicitado</th>
               <th>Aprobado</th>
               <th>Enviado</th>
@@ -496,8 +910,21 @@ function fmtQty(val) {
           </thead>
           <tbody>
             <tr v-for="item in transferItems" :key="item.uuid">
-              <td>{{ item.product_detail?.name ?? item.product }}</td>
-              <td>{{ fmtQty(item.requested_quantity) }}</td>
+              <td>
+                {{ item.product_detail?.name ?? item.product }}
+              </td>
+
+              <td>
+                {{
+                  item.lot_detail?.lot_number ??
+                  item.lot_detail?.batch_number ??
+                  "—"
+                }}
+              </td>
+
+              <td>
+                {{ fmtQty(item.requested_quantity) }}
+              </td>
               <td>
                 {{
                   item.approved_quantity ? fmtQty(item.approved_quantity) : "—"
@@ -536,31 +963,98 @@ function fmtQty(val) {
             viewingTransfer.status === 'SOLICITADO'
           "
         >
-          <h4 class="section-subtitle">Agregar producto</h4>
-          <AppAlert v-if="itemError" type="error" :message="itemError" />
-          <div class="inline-form">
-            <select v-model="itemForm.product" style="flex: 2">
-              <option value="">Seleccionar producto</option>
-              <option v-for="p in products" :key="p.uuid" :value="p.uuid">
-                {{ p.name }}
-              </option>
-            </select>
-            <input
-              v-model.number="itemForm.requested_quantity"
-              type="number"
-              min="0.001"
-              step="0.001"
-              style="width: 100px"
-              placeholder="Cantidad"
-            />
-            <button
-              type="button"
-              class="btn btn--primary btn--sm"
-              :disabled="itemLoading || !itemForm.product"
-              @click="addItem"
+          <h4 class="section-subtitle">
+            Agregar producto
+          </h4>
+
+          <AppAlert
+            v-if="itemError"
+            type="error"
+            :message="itemError"
+          />
+
+          <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+            <FormField
+              label="Producto"
+              required
+              class="md:col-span-5"
             >
-              {{ itemLoading ? "..." : "Agregar" }}
-            </button>
+              <AppSelect
+                v-model="itemForm.product"
+                @update:model-value="itemForm.lot = ''"
+              >
+                <option value="">
+                  Seleccionar producto
+                </option>
+
+                <option
+                  v-for="p in products"
+                  :key="p.uuid"
+                  :value="p.uuid"
+                >
+                  {{ p.name }}
+                </option>
+              </AppSelect>
+            </FormField>
+
+            <FormField
+              label="Cantidad"
+              required
+              class="md:col-span-2"
+            >
+              <AppInput
+                v-model.number="itemForm.requested_quantity"
+                type="number"
+                min="0.001"
+                step="0.001"
+              />
+            </FormField>
+
+            <FormField
+              v-if="selectedTransferProduct?.requires_lot"
+              label="Lote"
+              required
+              class="md:col-span-3"
+            >
+              <AppSelect v-model="itemForm.lot">
+                <option value="">
+                  Seleccionar lote
+                </option>
+
+                <option
+                  v-for="lot in availableLots"
+                  :key="lot.uuid"
+                  :value="lot.uuid"
+                >
+                  {{
+                    lot.lot_number ??
+                    lot.batch_number ??
+                    lot.uuid
+                  }}
+                </option>
+              </AppSelect>
+            </FormField>
+
+            <div
+              class="md:col-span-2 flex items-end"
+            >
+              <button
+                type="button"
+                class="btn btn--primary w-full"
+                :disabled="
+                  itemLoading ||
+                  !itemForm.product ||
+                  !itemForm.requested_quantity ||
+                  (
+                    selectedTransferProduct?.requires_lot &&
+                    !itemForm.lot
+                  )
+                "
+                @click="addItem"
+              >
+                {{ itemLoading ? "Agregando..." : "Agregar" }}
+              </button>
+            </div>
           </div>
         </template>
 

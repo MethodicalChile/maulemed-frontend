@@ -120,6 +120,7 @@ const formError = ref("");
 const {
   handleSubmit,
   setValues,
+  setFieldValue,
   values: form,
   resetForm,
   errors,
@@ -152,12 +153,61 @@ function reset() {
   resetForm();
 }
 
+function buildProductFormData(data) {
+  const formData = new FormData();
+
+  Object.entries(data).forEach(([key, value]) => {
+    // Imagen
+    if (key === "image") {
+      if (value instanceof File) {
+        formData.append("image", value);
+      }
+
+      return;
+    }
+
+    // Booleano especial para eliminar imagen
+    if (key === "remove_image") {
+      formData.append(
+        "remove_image",
+        value ? "true" : "false",
+      );
+
+      return;
+    }
+
+    // No enviar null / undefined
+    if (value === null || value === undefined) {
+      return;
+    }
+
+    // Booleanos
+    if (typeof value === "boolean") {
+      formData.append(
+        key,
+        value ? "true" : "false",
+      );
+
+      return;
+    }
+
+    formData.append(key, String(value));
+  });
+
+  return formData;
+}
+
 async function submit(data) {
+  const payload = buildProductFormData(data);
+
   if (editingItem.value) {
-    return await productsApi.updateProduct(editingItem.value.uuid, data);
-  } else {
-    return await productsApi.createProduct(data);
+    return await productsApi.updateProduct(
+      editingItem.value.uuid,
+      payload,
+    );
   }
+
+  return await productsApi.createProduct(payload);
 }
 
 // ─── Proveedores asociados ─────────────────────────────────────────────────────
@@ -258,12 +308,17 @@ function releaseLocalImageUrl() {
 
 function resetImageState() {
   releaseLocalImageUrl();
+
   imagePreview.value = "";
   originalImageUrl.value = "";
   imageError.value = "";
-  form.image = null;
-  form.remove_image = false;
-  if (imageInput.value) imageInput.value.value = "";
+
+  setFieldValue("image", null);
+  setFieldValue("remove_image", false);
+
+  if (imageInput.value) {
+    imageInput.value.value = "";
+  }
 }
 
 function openImageSelector() {
@@ -272,41 +327,73 @@ function openImageSelector() {
 
 function handleImageChange(event) {
   imageError.value = "";
+
   const file = event.target.files?.[0];
-  if (!file) return;
-  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-    imageError.value = "Solo se permiten imágenes JPG, PNG o WEBP.";
-    event.target.value = "";
+
+  if (!file) {
     return;
   }
+
+  if (
+    ![
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+    ].includes(file.type)
+  ) {
+    imageError.value =
+      "Solo se permiten imágenes JPG, PNG o WEBP.";
+
+    event.target.value = "";
+
+    return;
+  }
+
   if (file.size > 5 * 1024 * 1024) {
-    imageError.value = "La imagen no puede superar los 5 MB.";
+    imageError.value =
+      "La imagen no puede superar los 5 MB.";
+
     event.target.value = "";
+
     return;
   }
+
   releaseLocalImageUrl();
+
   localImageUrl = URL.createObjectURL(file);
+
   imagePreview.value = localImageUrl;
-  form.image = file;
-  form.remove_image = false;
+
+  setFieldValue("image", file);
+  setFieldValue("remove_image", false);
 }
 
 function removeProductImage() {
   releaseLocalImageUrl();
+
   imagePreview.value = "";
   imageError.value = "";
-  form.image = null;
-  form.remove_image = true;
-  if (imageInput.value) imageInput.value.value = "";
+
+  setFieldValue("image", null);
+  setFieldValue("remove_image", true);
+
+  if (imageInput.value) {
+    imageInput.value.value = "";
+  }
 }
 
 function discardImageChange() {
   releaseLocalImageUrl();
-  form.image = null;
-  form.remove_image = false;
+
+  setFieldValue("image", null);
+  setFieldValue("remove_image", false);
+
   imagePreview.value = originalImageUrl.value;
   imageError.value = "";
-  if (imageInput.value) imageInput.value.value = "";
+
+  if (imageInput.value) {
+    imageInput.value.value = "";
+  }
 }
 
 // ─── Funciones auxiliares ─────────────────────────────────────────────────────

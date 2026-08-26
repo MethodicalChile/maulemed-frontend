@@ -104,7 +104,7 @@ const routes = [
         component: MaintenanceView,
         meta: {
           title: "Mantenedor",
-          permission: "can_manage_catalogs",
+          permission: "can_view_maintenance",
         },
       },
       {
@@ -167,7 +167,7 @@ const routes = [
         component: RevenueView,
         meta: {
           title: "Ingresos",
-          permission: "can_view_finance",
+          permission: "can_view_revenue",
         },
       },
       {
@@ -331,6 +331,11 @@ function checkPermission(authStore, key) {
       "can_view_organizations",
     ],
 
+    // Mantenedor
+    can_view_maintenance: [
+      "can_view_maintenance",
+    ],
+
     can_manage_organizations: [
       "can_view_organizations",
     ],
@@ -404,6 +409,9 @@ function checkPermission(authStore, key) {
 
     // Finanzas
     can_view_finance: ["can_view_finance"],
+
+    // Ingresos
+    can_view_revenue: ["can_view_revenue"],
 
     // Documentos / órdenes de compra legacy
     can_manage_purchase_orders: [

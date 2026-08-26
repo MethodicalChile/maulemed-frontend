@@ -19,11 +19,12 @@ import { useAuthStore } from "@/stores/auth.store";
 const authStore = useAuthStore();
 
 const canManage = computed(() => {
-  if (authStore.user?.is_superuser) return true;
-  return (
-    ["ADMIN", "GERENTE", "FINANZAS"].some((r) =>
-      authStore.roleCodes?.includes(r),
-    ) || Boolean(authStore.permissions?.can_edit_finance)
+  if (authStore.user?.is_superuser) {
+    return true;
+  }
+
+  return Boolean(
+    authStore.permissions?.can_edit_revenue,
   );
 });
 

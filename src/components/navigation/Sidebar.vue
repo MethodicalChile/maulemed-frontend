@@ -244,8 +244,7 @@ const VISIBILITY = {
     ),
 
   // Mantenedor
-  maintenance: () => hasAnyPermission("can_manage_catalogs"),
-
+  maintenance: () => hasAnyPermission("can_view_maintenance"),
   // Proveedores
   suppliers: () =>
     hasAnyPermission(
@@ -275,7 +274,7 @@ const VISIBILITY = {
   finance: () => hasAnyPermission("can_view_finance"),
 
   // Ingresos
-  revenue: () => hasAnyPermission("can_view_finance"),
+  revenue: () => hasAnyPermission("can_view_revenue"),
 
   // Evaluaciones
   evaluations: () => hasAnyPermission("can_view_evaluations"),

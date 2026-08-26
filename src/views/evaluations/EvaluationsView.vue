@@ -17,6 +17,7 @@ import {
   MessageCircle,
   BarChart2,
   RefreshCw,
+  MoreVertical,
 } from "lucide-vue-next";
 import { evaluationsApi } from "@/api/evaluations.api";
 import { usersApi } from "@/api/users.api";
@@ -35,6 +36,19 @@ import AppTextarea from "@/components/common/AppTextarea.vue";
 import StatusBadge from "@/components/common/StatusBadge.vue";
 import QRModal from "@/components/evaluations/QRModal.vue";
 import ResponsesModal from "@/components/evaluations/ResponsesModal.vue";
+
+const showActionModal = ref(false);
+const activeActionRow = ref(null);
+
+function openActions(row) {
+  activeActionRow.value = row;
+  showActionModal.value = true;
+}
+
+function closeActions() {
+  showActionModal.value = false;
+  activeActionRow.value = null;
+}
 
 const {
   canViewEvaluations,
@@ -84,7 +98,7 @@ const QUESTION_COLS = [
   { key: "is_active", label: "Estado", width: "90px" },
   { key: "google_status", label: "Google Forms", width: "120px" },
   { key: "created_at", label: "Creado", width: "100px" },
-  { key: "actions", label: "", width: "200px" },
+  { key: "actions", label: "", width: "70px" },
 ];
 
 const questionList = useList(evaluationsApi.listForms);
@@ -776,155 +790,211 @@ async function submitMyEvaluation() {
         </template>
 
         <template #actions="{ row }">
-          <div class="flex gap-2">
-            <!-- Ver preguntas (siempre) -->
+          <div class="flex justify-end">
             <button
-              v-if="canViewEvaluations"
-              class="p-1 rounded hover:bg-muted"
-              title="Ver preguntas"
-              @click="openDetail(row)"
+              type="button"
+              class="grid place-items-center w-9 h-9 border border-border rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              title="Acciones"
+              @click="openActions(row)"
             >
-              <Eye :size="16" />
-            </button>
-
-            <!-- Editar (bloqueado si ya está publicado) -->
-            <button
-              v-if="canEditEvaluations"
-              class="p-1 rounded hover:bg-muted"
-              :title="
-                row.is_published_in_google
-                  ? 'Formulario publicado — editar solo descripción'
-                  : 'Editar'
-              "
-              @click="openEditForm(row)"
-            >
-              <Pencil :size="16" />
-            </button>
-
-            <!-- Toggle activo -->
-            <button
-              v-if="canEditEvaluations"
-              :class="[
-                'p-1 rounded hover:bg-muted',
-                row.is_active ? 'text-destructive' : '',
-              ]"
-              :title="row.is_active ? 'Desactivar' : 'Activar'"
-              @click="toggleActive(row)"
-            >
-              <component
-                :is="row.is_active ? ToggleRight : ToggleLeft"
-                :size="16"
-              />
-            </button>
-
-            <!-- Eliminar -->
-            <button
-              v-if="canDeleteEvaluations"
-              class="p-1 rounded hover:bg-muted text-destructive"
-              title="Eliminar formulario"
-              @click="deleteFormTarget = row"
-            >
-              <Trash2 :size="16" />
-            </button>
-
-            <!-- ── Acciones Google Forms ── -->
-
-            <!-- Publicar (solo si NO está publicado y NO está sincronizando) -->
-            <button
-              v-if="
-                canEditEvaluations &&
-                !row.is_published_in_google &&
-                row.google_sync_status !== 'SYNCING'
-              "
-              class="p-1 rounded hover:bg-muted"
-              :disabled="publishingUuid === row.uuid"
-              title="Publicar en Google Forms"
-              @click="requestPublish(row)"
-            >
-              <Upload v-if="publishingUuid !== row.uuid" :size="16" />
-              <span v-else class="mini-spinner" />
-            </button>
-
-            <!-- Abrir formulario (solo si publicado) -->
-            <a
-              v-if="row.is_published_in_google"
-              :href="row.google_form_url"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="p-1 rounded hover:bg-muted"
-              title="Abrir formulario"
-            >
-              <ExternalLink :size="16" />
-            </a>
-
-            <!-- Abrir edición (solo si publicado) -->
-            <a
-              v-if="canEditEvaluations && row.is_published_in_google"
-              :href="row.google_form_edit_url"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="p-1 rounded hover:bg-muted"
-              title="Editar en Google Forms"
-            >
-              <Pencil :size="16" />
-            </a>
-
-            <!-- Copiar enlace -->
-            <button
-              v-if="row.is_published_in_google"
-              class="p-1 rounded hover:bg-muted"
-              :title="
-                copySuccessUuid === row.uuid ? '¡Copiado!' : 'Copiar enlace'
-              "
-              @click="copyFormLink(row)"
-            >
-              <Copy :size="16" />
-            </button>
-
-            <!-- Compartir WhatsApp -->
-            <button
-              v-if="row.is_published_in_google"
-              class="p-1 rounded hover:bg-muted"
-              title="Compartir por WhatsApp"
-              @click="shareWhatsApp(row)"
-            >
-              <MessageCircle :size="16" />
-            </button>
-
-            <!-- Ver QR -->
-            <button
-              v-if="row.is_published_in_google"
-              class="p-1 rounded hover:bg-muted"
-              title="Ver código QR"
-              @click="openQR(row)"
-            >
-              <QrCode :size="16" />
-            </button>
-
-            <!-- Re-sincronizar con Google Forms (solo publicados) -->
-            <button
-              v-if="canEditEvaluations && row.is_published_in_google"
-              class="p-1 rounded hover:bg-muted"
-              :disabled="resyncingUuid === row.uuid"
-              title="Re-sincronizar preguntas con Google Forms"
-              @click="requestResync(row)"
-            >
-              <RefreshCw v-if="resyncingUuid !== row.uuid" :size="16" />
-              <span v-else class="mini-spinner" />
-            </button>
-
-            <!-- Ver respuestas -->
-            <button
-              v-if="canViewEvaluations"
-              class="p-1 rounded hover:bg-muted"
-              title="Ver respuestas"
-              @click="openResponses(row)"
-            >
-              <BarChart2 :size="16" />
+              <MoreVertical :size="17" />
             </button>
           </div>
         </template>
       </AppTable>
+
+            <AppModal
+        v-if="showActionModal && activeActionRow"
+        title="Acciones"
+        size="sm"
+        @close="closeActions"
+      >
+        <div class="grid gap-2">
+          <!-- Ver preguntas -->
+          <button
+            v-if="canViewEvaluations"
+            type="button"
+            class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+            @click="
+              openDetail(activeActionRow);
+              closeActions();
+            "
+          >
+            <Eye :size="16" />
+            Ver preguntas
+          </button>
+
+          <!-- Editar -->
+          <button
+            v-if="canEditEvaluations"
+            type="button"
+            class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+            @click="
+              openEditForm(activeActionRow);
+              closeActions();
+            "
+          >
+            <Pencil :size="16" />
+            Editar
+          </button>
+
+          <!-- Activar / Desactivar -->
+          <button
+            v-if="canEditEvaluations"
+            type="button"
+            class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+            @click="
+              toggleActive(activeActionRow);
+              closeActions();
+            "
+          >
+            <component
+              :is="activeActionRow.is_active ? ToggleRight : ToggleLeft"
+              :size="16"
+            />
+
+            {{ activeActionRow.is_active ? "Desactivar" : "Activar" }}
+          </button>
+
+          <!-- Publicar -->
+          <button
+            v-if="
+              canEditEvaluations &&
+              !activeActionRow.is_published_in_google &&
+              activeActionRow.google_sync_status !== 'SYNCING'
+            "
+            type="button"
+            class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+            :disabled="publishingUuid === activeActionRow.uuid"
+            @click="
+              requestPublish(activeActionRow);
+              closeActions();
+            "
+          >
+            <Upload :size="16" />
+            Publicar en Google Forms
+          </button>
+
+          <!-- Abrir formulario -->
+          <button
+            v-if="activeActionRow.is_published_in_google"
+            type="button"
+            class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+            @click="
+              openFormInBrowser(activeActionRow);
+              closeActions();
+            "
+          >
+            <ExternalLink :size="16" />
+            Abrir formulario
+          </button>
+
+          <!-- Editar en Google Forms -->
+          <button
+            v-if="
+              canEditEvaluations &&
+              activeActionRow.is_published_in_google
+            "
+            type="button"
+            class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+            @click="
+              openFormEdit(activeActionRow);
+              closeActions();
+            "
+          >
+            <Pencil :size="16" />
+            Editar en Google Forms
+          </button>
+
+          <!-- Copiar enlace -->
+          <button
+            v-if="activeActionRow.is_published_in_google"
+            type="button"
+            class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+            @click="
+              copyFormLink(activeActionRow);
+              closeActions();
+            "
+          >
+            <Copy :size="16" />
+            Copiar enlace
+          </button>
+
+          <!-- WhatsApp -->
+          <button
+            v-if="activeActionRow.is_published_in_google"
+            type="button"
+            class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+            @click="
+              shareWhatsApp(activeActionRow);
+              closeActions();
+            "
+          >
+            <MessageCircle :size="16" />
+            Compartir por WhatsApp
+          </button>
+
+          <!-- QR -->
+          <button
+            v-if="activeActionRow.is_published_in_google"
+            type="button"
+            class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+            @click="
+              openQR(activeActionRow);
+              closeActions();
+            "
+          >
+            <QrCode :size="16" />
+            Ver código QR
+          </button>
+
+          <!-- Re-sincronizar -->
+          <button
+            v-if="
+              canEditEvaluations &&
+              activeActionRow.is_published_in_google
+            "
+            type="button"
+            class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+            :disabled="resyncingUuid === activeActionRow.uuid"
+            @click="
+              requestResync(activeActionRow);
+              closeActions();
+            "
+          >
+            <RefreshCw :size="16" />
+            Re-sincronizar
+          </button>
+
+          <!-- Respuestas -->
+          <button
+            v-if="canViewEvaluations"
+            type="button"
+            class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+            @click="
+              openResponses(activeActionRow);
+              closeActions();
+            "
+          >
+            <BarChart2 :size="16" />
+            Ver respuestas
+          </button>
+
+          <!-- Eliminar -->
+          <button
+            v-if="canDeleteEvaluations"
+            type="button"
+            class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-destructive/10 text-sm font-medium text-destructive"
+            @click="
+              deleteFormTarget = activeActionRow;
+              closeActions();
+            "
+          >
+            <Trash2 :size="16" />
+            Eliminar formulario
+          </button>
+        </div>
+      </AppModal>
 
       <AppPagination
         :count="questionList.pagination.count"

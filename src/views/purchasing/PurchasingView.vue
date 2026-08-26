@@ -11,6 +11,7 @@ import {
   XCircle,
   Truck,
   AlertTriangle,
+  MoreVertical,
 } from "lucide-vue-next";
 import { purchasingApi } from "@/api/purchasing.api";
 import { optionsApi } from "@/api/options.api";
@@ -29,6 +30,23 @@ import AppInput from "@/components/common/AppInput.vue";
 import AppSelect from "@/components/common/AppSelect.vue";
 import AppMultiSelect from "@/components/common/AppMultiSelect.vue";
 import AppTextarea from "@/components/common/AppTextarea.vue";
+
+const selectedTransferProduct = computed(() =>
+  products.value.find(
+    (product) =>
+      product.uuid === itemForm.value.product,
+  ),
+);
+
+const availableLots = computed(() =>
+  lots.value.filter((lot) => {
+    const productUuid =
+      lot.product ??
+      lot.product_detail?.uuid;
+
+    return productUuid === itemForm.value.product;
+  }),
+);
 
 const {
   // Solicitudes
@@ -58,6 +76,8 @@ const {
 } = usePermissions();
 
 const { setRefreshFunction, clearRefreshFunction } = useRefresh();
+
+const lots = ref([]);
 
 async function loadAll() {
   const tasks = [];
@@ -170,7 +190,7 @@ const srColumns = [
   { key: "period", label: "Período" },
   { key: "status", label: "Estado" },
   { key: "requested_by", label: "Solicitante" },
-  { key: "actions", label: "", width: "120px" },
+  { key: "actions", label: "", width: "70px" },
 ];
 const srList = useList(purchasingApi.listSupplyRequests);
 
@@ -213,13 +233,47 @@ const poColumns = [
   { key: "branch", label: "Sucursal" },
   { key: "status", label: "Estado" },
   { key: "total_amount", label: "Total" },
-  { key: "actions", label: "", width: "140px" },
+  { key: "actions", label: "", width: "70px" },
 ];
 const poList = useList(purchasingApi.listPurchaseOrders);
 const showPOModal = ref(false);
 const editingPO = ref(null);
 const poActionLoading = ref(false);
 const poActionError = ref("");
+const showPOActionModal = ref(false);
+const activePORow = ref(null);
+
+function openPOActions(row) {
+  activePORow.value = row;
+  showPOActionModal.value = true;
+}
+
+function closePOActions() {
+  showPOActionModal.value = false;
+  activePORow.value = null;
+}
+
+function editPOFromActions() {
+  if (!activePORow.value) return;
+
+  const row = activePORow.value;
+
+  editingPO.value = row;
+  poFill({ ...row });
+  poActionError.value = "";
+  showPOModal.value = true;
+
+  closePOActions();
+}
+
+function viewPOFromActions() {
+  if (!activePORow.value) return;
+
+  const row = activePORow.value;
+
+  closePOActions();
+  openPODetail(row);
+}
 
 const emptyPOForm = {
   order_number: "",
@@ -251,7 +305,7 @@ const receiptColumns = [
   { key: "warehouse", label: "Bodega" },
   { key: "status", label: "Estado" },
   { key: "received_at", label: "Fecha recepción" },
-  { key: "actions", label: "", width: "100px" },
+  { key: "actions", label: "", width: "70px" },
 ];
 const receiptList = useList(purchasingApi.listPurchaseReceipts);
 const showReceiptModal = ref(false);
@@ -260,6 +314,37 @@ const receiptActionError = ref("");
 const editingReceipt = ref(null);
 const deleteReceipt = ref(null);
 const deleteReceiptLoading = ref(false);
+
+const showReceiptActionModal = ref(false);
+const activeReceiptRow = ref(null);
+
+function openReceiptActions(row) {
+  activeReceiptRow.value = row;
+  showReceiptActionModal.value = true;
+}
+
+function closeReceiptActions() {
+  showReceiptActionModal.value = false;
+  activeReceiptRow.value = null;
+}
+
+function viewReceiptFromActions() {
+  if (!activeReceiptRow.value) return;
+
+  const row = activeReceiptRow.value;
+
+  closeReceiptActions();
+  openReceiptDetail(row);
+}
+
+function editReceiptFromActions() {
+  if (!activeReceiptRow.value) return;
+
+  const row = activeReceiptRow.value;
+
+  closeReceiptActions();
+  openEditReceipt(row);
+}
 
 function openEditReceipt(row) {
   if (!canEditPurchaseReceipts.value) return;
@@ -305,29 +390,40 @@ const {
 const showPODetailModal = ref(false);
 const viewingPO = ref(null);
 const poItems = ref([]);
-const poItemForm = ref({ product: "", quantity: 1, unit_price: 0 });
+
+const poItemForm = ref({
+  product: "",
+  quantity: 1,
+  unit_price: 0,
+});
+
 const poItemLoading = ref(false);
 const poItemError = ref("");
 
 async function openPODetail(row) {
   poItemError.value = "";
   viewingPO.value = row;
+
   try {
     const res = await purchasingApi.getPurchaseOrder(row.uuid);
     const d = res.data?.data ?? res.data;
+
     viewingPO.value = d;
     poItems.value = d.items ?? [];
   } catch {
     poItems.value = row.items ?? [];
   }
+
   showPODetailModal.value = true;
 }
 
 async function addPOItem() {
   if (!canEditPurchaseOrders.value) return;
   if (!viewingPO.value) return;
+
   poItemError.value = "";
   poItemLoading.value = true;
+
   try {
     await purchasingApi.createPurchaseOrderItem({
       purchase_order: viewingPO.value.uuid,
@@ -335,10 +431,18 @@ async function addPOItem() {
       quantity: poItemForm.value.quantity,
       unit_price: poItemForm.value.unit_price,
     });
-    poItemForm.value = { product: "", quantity: 1, unit_price: 0 };
+
+    itemForm.value = {
+      product: "",
+      requested_quantity: 1,
+      lot: "",
+    };
+
     await openPODetail(viewingPO.value);
   } catch (e) {
-    poItemError.value = e.response?.data?.message ?? "Error al agregar ítem";
+    poItemError.value =
+      e.response?.data?.message ??
+      "Error al agregar ítem";
   } finally {
     poItemLoading.value = false;
   }
@@ -348,11 +452,15 @@ async function removePOItem(itemUuid) {
   if (!canEditPurchaseOrders.value) return;
 
   poItemLoading.value = true;
+
   try {
     await purchasingApi.deletePurchaseOrderItem(itemUuid);
+
     await openPODetail(viewingPO.value);
   } catch (e) {
-    poItemError.value = e.response?.data?.message ?? "Error al eliminar ítem";
+    poItemError.value =
+      e.response?.data?.message ??
+      "Error al eliminar ítem";
   } finally {
     poItemLoading.value = false;
   }
@@ -379,7 +487,7 @@ const claimColumns = [
   { key: "status", label: "Estado" },
   { key: "description", label: "Descripción" },
   { key: "created_at", label: "Creado" },
-  { key: "actions", label: "", width: "100px" },
+  { key: "actions", label: "", width: "70px" },
 ];
 
 const claimList = useList(purchasingApi.listSupplierClaims);
@@ -390,6 +498,37 @@ const viewingClaim = ref(null);
 const claimActionError = ref("");
 const deleteClaim = ref(null);
 const deleteClaimLoading = ref(false);
+
+const showClaimActionModal = ref(false);
+const activeClaimRow = ref(null);
+
+function openClaimActions(row) {
+  activeClaimRow.value = row;
+  showClaimActionModal.value = true;
+}
+
+function closeClaimActions() {
+  showClaimActionModal.value = false;
+  activeClaimRow.value = null;
+}
+
+function viewClaimFromActions() {
+  if (!activeClaimRow.value) return;
+
+  const row = activeClaimRow.value;
+
+  closeClaimActions();
+  openClaimDetail(row);
+}
+
+function editClaimFromActions() {
+  if (!activeClaimRow.value) return;
+
+  const row = activeClaimRow.value;
+
+  closeClaimActions();
+  openEditClaim(row);
+}
 
 const emptyClaimForm = {
   supplier: "",
@@ -625,10 +764,10 @@ async function addSRItem() {
       requested_quantity: srItemForm.value.requested_quantity,
       justification: srItemForm.value.justification,
     });
-    srItemForm.value = {
+    itemForm.value = {
       product: "",
       requested_quantity: 1,
-      justification: "",
+      lot: "",
     };
     await openSRDetail(viewingSR.value);
   } catch (e) {
@@ -803,26 +942,53 @@ async function poAction(action, row) {
   poActionError.value = "";
 
   try {
+    if (action === "sendToApproval") {
+      const res = await purchasingApi.getPurchaseOrder(row.uuid);
+      const order = res.data?.data ?? res.data;
+
+      const items = order.items ?? [];
+
+      if (!items.length) {
+        poActionError.value =
+          "Debes agregar al menos un producto antes de enviar la orden a aprobación.";
+
+        return;
+      }
+    }
+
     const map = {
       sendToApproval: () =>
         purchasingApi.updatePurchaseOrder(row.uuid, {
           status: "EN_APROBACION",
         }),
 
-      approve: () => purchasingApi.approvePurchaseOrder(row.uuid),
+      approve: () =>
+        purchasingApi.approvePurchaseOrder(row.uuid),
 
-      send: () => purchasingApi.sendPurchaseOrder(row.uuid),
+      send: () =>
+        purchasingApi.sendPurchaseOrder(row.uuid),
 
-      cancel: () => purchasingApi.cancelPurchaseOrder(row.uuid),
+      cancel: () =>
+        purchasingApi.cancelPurchaseOrder(row.uuid),
 
-      close: () => purchasingApi.closePurchaseOrder(row.uuid),
+      close: () =>
+        purchasingApi.closePurchaseOrder(row.uuid),
     };
 
+    if (!map[action]) {
+      poActionError.value =
+        "La acción solicitada no es válida.";
+      return;
+    }
+
     await map[action]();
-    poList.load();
+
+    await poList.load();
   } catch (e) {
     poActionError.value =
-      e.response?.data?.message ?? "Error al ejecutar acción";
+      e.response?.data?.message ??
+      e.response?.data?.detail ??
+      "Error al ejecutar acción";
   } finally {
     poActionLoading.value = false;
   }
@@ -840,6 +1006,11 @@ const receiptItemForm = ref({
   lot_number: "",
   expiration_date: "",
 });
+const selectedReceiptProduct = computed(() =>
+  products.value.find(
+    (product) => product.uuid === receiptItemForm.value.product,
+  ),
+);
 const receiptItemLoading = ref(false);
 const receiptItemError = ref("");
 
@@ -859,20 +1030,48 @@ async function openReceiptDetail(row) {
 
 async function addReceiptItem() {
   if (!canEditPurchaseReceipts.value) return;
-
   if (!viewingReceipt.value) return;
+
   receiptItemError.value = "";
+
+  if (
+    selectedReceiptProduct.value?.requires_lot &&
+    !receiptItemForm.value.lot_number
+  ) {
+    receiptItemError.value =
+      "Este producto requiere número de lote.";
+
+    return;
+  }
+
+  if (
+    selectedReceiptProduct.value?.requires_expiration_date &&
+    !receiptItemForm.value.expiration_date
+  ) {
+    receiptItemError.value =
+      "Este producto requiere fecha de vencimiento.";
+
+    return;
+  }
+
   receiptItemLoading.value = true;
+
   try {
     await purchasingApi.createPurchaseReceiptItem({
       purchase_receipt: viewingReceipt.value.uuid,
       product: receiptItemForm.value.product,
-      received_quantity: receiptItemForm.value.received_quantity,
-      accepted_quantity: receiptItemForm.value.accepted_quantity,
-      rejected_quantity: receiptItemForm.value.rejected_quantity,
-      lot_number: receiptItemForm.value.lot_number || null,
-      expiration_date: receiptItemForm.value.expiration_date || null,
+      received_quantity:
+        receiptItemForm.value.received_quantity,
+      accepted_quantity:
+        receiptItemForm.value.accepted_quantity,
+      rejected_quantity:
+        receiptItemForm.value.rejected_quantity,
+      lot_number:
+        receiptItemForm.value.lot_number || null,
+      expiration_date:
+        receiptItemForm.value.expiration_date || null,
     });
+
     receiptItemForm.value = {
       product: "",
       received_quantity: 1,
@@ -881,10 +1080,13 @@ async function addReceiptItem() {
       lot_number: "",
       expiration_date: "",
     };
+
     await openReceiptDetail(viewingReceipt.value);
   } catch (e) {
     receiptItemError.value =
-      e.response?.data?.message ?? "Error al agregar ítem";
+      e.response?.data?.message ??
+      e.response?.data?.detail ??
+      "Error al agregar ítem";
   } finally {
     receiptItemLoading.value = false;
   }
@@ -961,10 +1163,35 @@ async function processReceipt(row) {
 
   try {
     await purchasingApi.processPurchaseReceipt(row.uuid);
-    receiptList.load();
+
+    await receiptList.load();
   } catch (e) {
-    receiptActionError.value =
-      e.response?.data?.message ?? "Error al procesar recepción";
+    console.error(
+      "Error procesando recepción:",
+      e.response?.data
+    );
+
+    const data = e.response?.data;
+
+    if (typeof data?.message === "string") {
+      receiptActionError.value = data.message;
+    } else if (typeof data?.detail === "string") {
+      receiptActionError.value = data.detail;
+    } else if (Array.isArray(data?.detail)) {
+      receiptActionError.value = data.detail.join(" ");
+    } else if (Array.isArray(data?.errors)) {
+      receiptActionError.value = data.errors.join(" ");
+    } else if (data && typeof data === "object") {
+      const firstError = Object.values(data).flat()[0];
+
+      receiptActionError.value =
+        typeof firstError === "string"
+          ? firstError
+          : "No se pudo procesar la recepción.";
+    } else {
+      receiptActionError.value =
+        "No se pudo procesar la recepción.";
+    }
   }
 }
 
@@ -1075,13 +1302,14 @@ function fmtDate(val) {
           row.requested_by_detail?.full_name ?? "—"
         }}</template>
         <template #actions="{ row }">
-          <div class="flex gap-1 justify-end">
+          <div class="flex justify-end">
             <button
-              class="p-1 rounded hover:bg-muted"
-              title="Ver / gestionar"
+              type="button"
+              class="grid place-items-center w-9 h-9 border border-border rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              title="Acciones"
               @click="openSRDetail(row)"
             >
-              <Eye :size="16" />
+              <MoreVertical :size="17" />
             </button>
           </div>
         </template>
@@ -1134,93 +1362,14 @@ function fmtDate(val) {
         /></template>
         <template #total_amount="{ row }">{{ fmt(row.total_amount) }}</template>
         <template #actions="{ row }">
-          <div class="flex gap-1 justify-end">
-            <!-- Ver -->
+          <div class="flex justify-end">
             <button
-              v-if="canViewPurchaseOrders"
-              class="p-1 rounded hover:bg-muted"
-              title="Ver ítems"
-              @click="openPODetail(row)"
+              type="button"
+              class="grid place-items-center w-9 h-9 border border-border rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              title="Acciones"
+              @click="openPOActions(row)"
             >
-              <Eye :size="16" />
-            </button>
-
-            <!-- Editar -->
-            <button
-              v-if="canEditPurchaseOrders"
-              class="p-1 rounded hover:bg-muted"
-              title="Editar"
-              @click="
-                editingPO = row;
-                poFill({ ...row });
-                poActionError = '';
-                showPOModal = true;
-              "
-            >
-              <Pencil :size="16" />
-            </button>
-
-            <!-- Eliminar -->
-            <button
-              v-if="canDeletePurchaseOrders"
-              class="p-1 rounded hover:bg-muted text-destructive"
-              title="Eliminar"
-              @click="deletePO = row"
-            >
-              <XCircle :size="16" />
-            </button>
-
-            <!-- Enviar a aprobación -->
-            <button
-              v-if="canEditPurchaseOrders && row.status === 'BORRADOR'"
-              class="p-1 rounded hover:bg-muted"
-              title="Enviar a aprobación"
-              @click="poAction('sendToApproval', row)"
-            >
-              <Send :size="16" />
-            </button>
-
-            <!-- Aprobar -->
-            <button
-              v-if="canEditPurchaseOrders && row.status === 'EN_APROBACION'"
-              class="p-1 rounded hover:bg-muted"
-              title="Aprobar orden"
-              @click="poAction('approve', row)"
-            >
-              <CheckCircle :size="16" />
-            </button>
-
-            <!-- Enviar proveedor -->
-            <button
-              v-if="canEditPurchaseOrders && row.status === 'APROBADA'"
-              class="p-1 rounded hover:bg-muted"
-              title="Enviar a proveedor"
-              @click="poAction('send', row)"
-            >
-              <Truck :size="16" />
-            </button>
-
-            <!-- Cancelar -->
-            <button
-              v-if="
-                canEditPurchaseOrders &&
-                !['CANCELADA', 'CERRADA', 'RECIBIDA'].includes(row.status)
-              "
-              class="p-1 rounded hover:bg-muted"
-              title="Cancelar"
-              @click="poAction('cancel', row)"
-            >
-              <XCircle :size="16" />
-            </button>
-
-            <!-- Cerrar -->
-            <button
-              v-if="canEditPurchaseOrders && row.status === 'RECIBIDA'"
-              class="p-1 rounded hover:bg-muted"
-              title="Cerrar OC"
-              @click="poAction('close', row)"
-            >
-              <CheckCircle :size="16" />
+              <MoreVertical :size="17" />
             </button>
           </div>
         </template>
@@ -1232,6 +1381,139 @@ function fmtDate(val) {
         @change="poList.setPage"
       />
     </template>
+
+    <!-- ══ MODAL: Acciones Orden de Compra ══ -->
+    <AppModal
+      v-if="showPOActionModal && activePORow"
+      :title="`Acciones - OC ${activePORow.order_number}`"
+      size="sm"
+      @close="closePOActions"
+    >
+      <div class="grid gap-2">
+        <!-- Ver detalle -->
+        <button
+          v-if="canViewPurchaseOrders"
+          type="button"
+          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+          @click="viewPOFromActions"
+        >
+          <Eye :size="16" />
+          Ver detalle e ítems
+        </button>
+
+        <!-- Editar -->
+        <button
+          v-if="canEditPurchaseOrders"
+          type="button"
+          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+          @click="editPOFromActions"
+        >
+          <Pencil :size="16" />
+          Editar orden
+        </button>
+
+        <!-- Enviar a aprobación -->
+        <button
+          v-if="
+            canEditPurchaseOrders &&
+            activePORow.status === 'BORRADOR'
+          "
+          type="button"
+          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+          @click="
+            poAction('sendToApproval', activePORow);
+            closePOActions();
+          "
+        >
+          <Send :size="16" />
+          Enviar a aprobación
+        </button>
+
+        <!-- Aprobar -->
+        <button
+          v-if="
+            canEditPurchaseOrders &&
+            activePORow.status === 'EN_APROBACION'
+          "
+          type="button"
+          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+          @click="
+            poAction('approve', activePORow);
+            closePOActions();
+          "
+        >
+          <CheckCircle :size="16" />
+          Aprobar orden
+        </button>
+
+        <!-- Enviar al proveedor -->
+        <button
+          v-if="
+            canEditPurchaseOrders &&
+            activePORow.status === 'APROBADA'
+          "
+          type="button"
+          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+          @click="
+            poAction('send', activePORow);
+            closePOActions();
+          "
+        >
+          <Truck :size="16" />
+          Enviar a proveedor
+        </button>
+
+        <!-- Cerrar -->
+        <button
+          v-if="
+            canEditPurchaseOrders &&
+            activePORow.status === 'RECIBIDA'
+          "
+          type="button"
+          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+          @click="
+            poAction('close', activePORow);
+            closePOActions();
+          "
+        >
+          <CheckCircle :size="16" />
+          Cerrar orden
+        </button>
+
+        <!-- Cancelar -->
+        <button
+          v-if="
+            canEditPurchaseOrders &&
+            !['CANCELADA', 'CERRADA', 'RECIBIDA'].includes(
+              activePORow.status
+            )
+          "
+          type="button"
+          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-destructive/10 text-sm font-medium text-destructive"
+          @click="
+            poAction('cancel', activePORow);
+            closePOActions();
+          "
+        >
+          <XCircle :size="16" />
+          Cancelar orden
+        </button>
+
+        <!-- Eliminar -->
+        <button
+          v-if="canDeletePurchaseOrders"
+          type="button"
+          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-destructive/10 text-sm font-medium text-destructive"
+          @click="
+            deletePO = activePORow;
+            closePOActions();
+          "
+        >
+          <XCircle :size="16" />
+          Eliminar orden
+        </button>
+      </div>
+    </AppModal>
 
     <!-- ── RECEPCIONES ── -->
     <template v-if="activeTab === 'Recepciones'">
@@ -1270,45 +1552,14 @@ function fmtDate(val) {
           fmtDate(row.received_at)
         }}</template>
         <template #actions="{ row }">
-          <div class="flex gap-1 justify-end">
-            <!-- Ver -->
+          <div class="flex justify-end">
             <button
-              v-if="canViewPurchaseReceipts"
-              class="p-1 rounded hover:bg-muted"
-              title="Ver ítems"
-              @click="openReceiptDetail(row)"
+              type="button"
+              class="grid place-items-center w-9 h-9 border border-border rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              title="Acciones"
+              @click="openReceiptActions(row)"
             >
-              <Eye :size="16" />
-            </button>
-
-            <!-- Editar -->
-            <button
-              v-if="canEditPurchaseReceipts"
-              class="p-1 rounded hover:bg-muted"
-              title="Editar"
-              @click="openEditReceipt(row)"
-            >
-              <Pencil :size="16" />
-            </button>
-
-            <!-- Eliminar -->
-            <button
-              v-if="canDeletePurchaseReceipts"
-              class="p-1 rounded hover:bg-muted text-destructive"
-              title="Eliminar"
-              @click="deleteReceipt = row"
-            >
-              <XCircle :size="16" />
-            </button>
-
-            <!-- Procesar -->
-            <button
-              v-if="canProcessPurchaseReceipts && row.status !== 'PROCESADO'"
-              class="p-1 rounded hover:bg-muted"
-              title="Procesar recepción"
-              @click="processReceipt(row)"
-            >
-              <Truck :size="16" />
+              <MoreVertical :size="17" />
             </button>
           </div>
         </template>
@@ -1320,6 +1571,69 @@ function fmtDate(val) {
         @change="receiptList.setPage"
       />
     </template>
+
+    <!-- ══ MODAL: Acciones Recepción ══ -->
+    <AppModal
+      v-if="showReceiptActionModal && activeReceiptRow"
+      :title="`Acciones - Recepción ${activeReceiptRow.purchase_order_detail?.order_number ?? ''}`"
+      size="sm"
+      @close="closeReceiptActions"
+    >
+      <div class="grid gap-2">
+        <!-- Ver -->
+        <button
+          v-if="canViewPurchaseReceipts"
+          type="button"
+          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+          @click="viewReceiptFromActions"
+        >
+          <Eye :size="16" />
+          Ver detalle y productos
+        </button>
+
+        <!-- Editar -->
+        <button
+          v-if="canEditPurchaseReceipts"
+          type="button"
+          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+          @click="editReceiptFromActions"
+        >
+          <Pencil :size="16" />
+          Editar recepción
+        </button>
+
+        <!-- Procesar -->
+        <button
+          v-if="
+            canProcessPurchaseReceipts &&
+            activeReceiptRow.status !== 'PROCESADO'
+          "
+          type="button"
+          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+          @click="
+            processReceipt(activeReceiptRow);
+            closeReceiptActions();
+          "
+        >
+          <Truck :size="16" />
+          Procesar recepción
+        </button>
+
+        <!-- Eliminar -->
+        <button
+          v-if="canDeletePurchaseReceipts"
+          type="button"
+          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-destructive/10 text-sm font-medium text-destructive"
+          @click="
+            deleteReceipt = activeReceiptRow;
+            closeReceiptActions();
+          "
+        >
+          <XCircle :size="16" />
+          Eliminar recepción
+        </button>
+      </div>
+    </AppModal>
 
     <!-- ── RECLAMOS ── -->
     <template v-if="activeTab === 'Reclamos'">
@@ -1364,35 +1678,14 @@ function fmtDate(val) {
         </template>
         <template #created_at="{ row }">{{ fmtDate(row.created_at) }}</template>
         <template #actions="{ row }">
-          <div class="flex gap-1 justify-end">
-            <!-- Ver -->
+          <div class="flex justify-end">
             <button
-              v-if="canViewSupplierClaims"
-              class="p-1 rounded hover:bg-muted"
-              title="Ver detalle"
-              @click="openClaimDetail(row)"
+              type="button"
+              class="grid place-items-center w-9 h-9 border border-border rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              title="Acciones"
+              @click="openClaimActions(row)"
             >
-              <Eye :size="16" />
-            </button>
-
-            <!-- Editar -->
-            <button
-              v-if="canEditSupplierClaims"
-              class="p-1 rounded hover:bg-muted"
-              title="Editar"
-              @click="openEditClaim(row)"
-            >
-              <Pencil :size="16" />
-            </button>
-
-            <!-- Eliminar -->
-            <button
-              v-if="canDeleteSupplierClaims"
-              class="p-1 rounded hover:bg-muted text-destructive"
-              title="Eliminar"
-              @click="deleteClaim = row"
-            >
-              <XCircle :size="16" />
+              <MoreVertical :size="17" />
             </button>
           </div>
         </template>
@@ -1404,6 +1697,49 @@ function fmtDate(val) {
         @change="claimList.setPage"
       />
     </template>
+
+    <!-- ══ MODAL: Acciones Reclamo ══ -->
+    <AppModal
+      v-if="showClaimActionModal && activeClaimRow"
+      title="Acciones - Reclamo"
+      size="sm"
+      @close="closeClaimActions"
+    >
+      <div class="grid gap-2">
+        <button
+          v-if="canViewSupplierClaims"
+          type="button"
+          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+          @click="viewClaimFromActions"
+        >
+          <Eye :size="16" />
+          Ver detalle
+        </button>
+
+        <button
+          v-if="canEditSupplierClaims"
+          type="button"
+          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted text-sm font-medium"
+          @click="editClaimFromActions"
+        >
+          <Pencil :size="16" />
+          Editar reclamo
+        </button>
+
+        <button
+          v-if="canDeleteSupplierClaims"
+          type="button"
+          class="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-destructive/10 text-sm font-medium text-destructive"
+          @click="
+            deleteClaim = activeClaimRow;
+            closeClaimActions();
+          "
+        >
+          <XCircle :size="16" />
+          Eliminar reclamo
+        </button>
+      </div>
+    </AppModal>
 
     <!-- ══ MODAL: Nueva solicitud ══ -->
     <AppModal
@@ -1547,35 +1883,44 @@ function fmtDate(val) {
         >
           <h4 class="section-subtitle">Agregar ítem</h4>
           <AppAlert v-if="srItemError" type="error" :message="srItemError" />
-          <div class="inline-form">
-            <AppSelect v-model="srItemForm.product" style="flex: 2">
-              <option value="">Seleccionar producto</option>
-              <option v-for="p in products" :key="p.uuid" :value="p.uuid">
-                {{ p.name }}
-              </option>
-            </AppSelect>
-            <AppInput
-              v-model.number="srItemForm.requested_quantity"
-              type="number"
-              min="0.001"
-              step="0.001"
-              style="width: 90px"
-              placeholder="Cantidad"
-            />
-            <AppInput
-              v-model="srItemForm.justification"
-              type="text"
-              style="flex: 2"
-              placeholder="Justificación (opcional)"
-            />
-            <button
-              type="button"
-              class="btn btn--primary btn--sm"
-              :disabled="srItemLoading || !srItemForm.product"
-              @click="addSRItem"
-            >
-              {{ srItemLoading ? "..." : "Agregar" }}
-            </button>
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+            <div class="p-3 rounded-lg border border-border bg-muted/20">
+              <div class="text-xs text-muted-foreground uppercase tracking-wide">
+                Sucursal
+              </div>
+              <div class="mt-1 font-medium">
+                {{ viewingSR.branch_detail?.name || "—" }}
+              </div>
+            </div>
+
+            <div class="p-3 rounded-lg border border-border bg-muted/20">
+              <div class="text-xs text-muted-foreground uppercase tracking-wide">
+                Estado
+              </div>
+              <div class="mt-1">
+                <span class="status-pill">
+                  {{ viewingSR.status_label || viewingSR.status || "—" }}
+                </span>
+              </div>
+            </div>
+
+            <div class="p-3 rounded-lg border border-border bg-muted/20">
+              <div class="text-xs text-muted-foreground uppercase tracking-wide">
+                Solicitado por
+              </div>
+              <div class="mt-1 font-medium">
+                {{ viewingSR.requested_by_name || "—" }}
+              </div>
+            </div>
+
+            <div class="p-3 rounded-lg border border-border bg-muted/20">
+              <div class="text-xs text-muted-foreground uppercase tracking-wide">
+                Presupuesto
+              </div>
+              <div class="mt-1 font-medium">
+                {{ viewingSR.budget_message || "Sin presupuesto definido para esta sucursal y centro de costo." }}
+              </div>
+            </div>
           </div>
         </template>
 
@@ -1918,38 +2263,122 @@ function fmtDate(val) {
         <template
           v-if="canEditPurchaseOrders && viewingPO.status === 'BORRADOR'"
         >
-          <h4 class="section-subtitle">Agregar ítem</h4>
-          <div class="inline-form">
-            <select v-model="poItemForm.product" style="flex: 2">
-              <option value="">Seleccionar producto</option>
-              <option v-for="p in products" :key="p.uuid" :value="p.uuid">
-                {{ p.name }}
-              </option>
-            </select>
-            <input
-              v-model.number="poItemForm.quantity"
-              type="number"
-              min="0.001"
-              step="0.001"
-              style="width: 90px"
-              placeholder="Cantidad"
-            />
-            <input
-              v-model.number="poItemForm.unit_price"
-              type="number"
-              min="0"
-              step="1"
-              style="width: 110px"
-              placeholder="Precio unit."
-            />
-            <button
-              type="button"
-              class="btn btn--primary btn--sm"
-              :disabled="poItemLoading || !poItemForm.product"
-              @click="addPOItem"
+          <h4 class="section-subtitle">Agregar producto a la orden</h4>
+
+          <AppAlert
+            v-if="poItemError"
+            type="error"
+            :message="poItemError"
+          />
+
+          <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+            <!-- Producto -->
+            <FormField
+              label="Producto"
+              required
+              class="md:col-span-6"
             >
-              {{ poItemLoading ? "..." : "Agregar" }}
-            </button>
+              <AppSelect v-model="poItemForm.product">
+                <option value="">Seleccionar producto</option>
+
+                <option
+                  v-for="p in products"
+                  :key="p.uuid"
+                  :value="p.uuid"
+                >
+                  {{ p.name }}
+                </option>
+              </AppSelect>
+            </FormField>
+
+            <!-- Cantidad -->
+            <FormField
+              label="Cantidad"
+              required
+              class="md:col-span-2"
+            >
+              <AppInput
+                v-model.number="poItemForm.quantity"
+                type="number"
+                min="0.001"
+                step="0.001"
+                placeholder="Ej: 1"
+              />
+            </FormField>
+
+            <!-- Precio unitario -->
+            <FormField
+              label="Precio unitario"
+              required
+              class="md:col-span-2"
+            >
+              <AppInput
+                v-model.number="poItemForm.unit_price"
+                type="number"
+                min="0"
+                step="1"
+                placeholder="$ 0"
+              />
+            </FormField>
+
+            <!-- Botón -->
+            <div class="md:col-span-2">
+              <button
+                type="button"
+                class="w-full btn btn--primary"
+                :disabled="
+                  poItemLoading ||
+                  !poItemForm.product ||
+                  !poItemForm.quantity
+                "
+                @click="addPOItem"
+              >
+                {{ poItemLoading ? "Agregando..." : "Agregar" }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Resumen -->
+          <div
+            v-if="poItemForm.quantity"
+            class="mt-3 p-3 rounded-lg bg-muted/40 text-sm"
+          >
+            <div class="flex justify-between gap-4">
+              <span class="text-muted-foreground">
+                Cantidad:
+              </span>
+
+              <strong>
+                {{ poItemForm.quantity }}
+              </strong>
+            </div>
+
+            <div class="flex justify-between gap-4 mt-1">
+              <span class="text-muted-foreground">
+                Precio unitario:
+              </span>
+
+              <strong>
+                {{ fmt(poItemForm.unit_price || 0) }}
+              </strong>
+            </div>
+
+            <div
+              class="flex justify-between gap-4 mt-2 pt-2 border-t border-border"
+            >
+              <span class="font-semibold">
+                Subtotal:
+              </span>
+
+              <strong class="text-primary">
+                {{
+                  fmt(
+                    Number(poItemForm.quantity || 0) *
+                      Number(poItemForm.unit_price || 0),
+                  )
+                }}
+              </strong>
+            </div>
           </div>
         </template>
 
@@ -2045,60 +2474,180 @@ function fmtDate(val) {
             canEditPurchaseReceipts && viewingReceipt.status !== 'PROCESADO'
           "
         >
-          <h4 class="section-subtitle">Agregar producto</h4>
-          <div class="inline-form" style="flex-wrap: wrap">
-            <AppSelect
-              v-model="receiptItemForm.product"
-              style="flex: 2; min-width: 160px"
+          <h4 class="section-subtitle">
+            Agregar producto recibido
+          </h4>
+
+          <div class="p-4 rounded-xl border border-border bg-muted/20">
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+              <FormField
+                label="Producto"
+                required
+                class="md:col-span-6"
+              >
+                <AppSelect v-model="receiptItemForm.product">
+                  <option value="">
+                    Seleccionar producto
+                  </option>
+
+                  <option
+                    v-for="p in products"
+                    :key="p.uuid"
+                    :value="p.uuid"
+                  >
+                    {{ p.name }}
+                  </option>
+                </AppSelect>
+              </FormField>
+
+              <FormField
+                label="Cantidad recibida"
+                required
+                class="md:col-span-2"
+              >
+                <AppInput
+                  v-model.number="receiptItemForm.received_quantity"
+                  type="number"
+                  min="0"
+                  step="0.001"
+                  placeholder="Ej: 10"
+                />
+              </FormField>
+
+              <FormField
+                label="Cantidad aceptada"
+                required
+                class="md:col-span-2"
+              >
+                <AppInput
+                  v-model.number="receiptItemForm.accepted_quantity"
+                  type="number"
+                  min="0"
+                  step="0.001"
+                  placeholder="Ej: 10"
+                />
+              </FormField>
+
+              <FormField
+                label="Cantidad rechazada"
+                class="md:col-span-2"
+              >
+                <AppInput
+                  v-model.number="receiptItemForm.rejected_quantity"
+                  type="number"
+                  min="0"
+                  step="0.001"
+                  placeholder="0"
+                />
+              </FormField>
+
+              <FormField
+                label="Número de lote"
+                :required="selectedReceiptProduct?.requires_lot"
+                class="md:col-span-6"
+              >
+                <AppInput
+                  v-model="receiptItemForm.lot_number"
+                  type="text"
+                  :placeholder="
+                    selectedReceiptProduct?.requires_lot
+                      ? 'Obligatorio para este producto'
+                      : 'Ej: LOT-2026-001'
+                  "
+                  :required="selectedReceiptProduct?.requires_lot"
+                />
+
+                <p
+                  v-if="selectedReceiptProduct?.requires_lot"
+                  class="mt-1 text-xs text-muted-foreground"
+                >
+                  Este producto requiere número de lote.
+                </p>
+              </FormField>
+
+              <FormField
+                label="Fecha de vencimiento"
+                :required="selectedReceiptProduct?.requires_expiration_date"
+                class="md:col-span-4"
+              >
+                <AppInput
+                  v-model="receiptItemForm.expiration_date"
+                  type="date"
+                  :required="selectedReceiptProduct?.requires_expiration_date"
+                />
+
+                <p
+                  v-if="selectedReceiptProduct?.requires_expiration_date"
+                  class="mt-1 text-xs text-muted-foreground"
+                >
+                  Este producto requiere fecha de vencimiento.
+                </p>
+              </FormField>
+
+              <div class="md:col-span-2 flex items-end">
+                <button
+                  type="button"
+                  class="btn btn--primary w-full"
+                  :disabled="
+                    receiptItemLoading ||
+                    !receiptItemForm.product ||
+                    !receiptItemForm.received_quantity ||
+                    (
+                      selectedReceiptProduct?.requires_lot &&
+                      !receiptItemForm.lot_number
+                    ) ||
+                    (
+                      selectedReceiptProduct?.requires_expiration_date &&
+                      !receiptItemForm.expiration_date
+                    )
+                  "
+                  @click="addReceiptItem"
+                >
+                  {{
+                    receiptItemLoading
+                      ? "Agregando..."
+                      : "Agregar producto"
+                  }}
+                </button>
+              </div>
+            </div>
+
+            <div
+              v-if="receiptItemForm.received_quantity"
+              class="mt-4 pt-4 border-t border-border"
             >
-              <option value="">Seleccionar producto</option>
-              <option v-for="p in products" :key="p.uuid" :value="p.uuid">
-                {{ p.name }}
-              </option>
-            </AppSelect>
-            <AppInput
-              v-model.number="receiptItemForm.received_quantity"
-              type="number"
-              min="0"
-              step="0.001"
-              style="width: 90px"
-              placeholder="Recibido"
-            />
-            <AppInput
-              v-model.number="receiptItemForm.accepted_quantity"
-              type="number"
-              min="0"
-              step="0.001"
-              style="width: 90px"
-              placeholder="Aceptado"
-            />
-            <AppInput
-              v-model.number="receiptItemForm.rejected_quantity"
-              type="number"
-              min="0"
-              step="0.001"
-              style="width: 90px"
-              placeholder="Rechazado"
-            />
-            <AppInput
-              v-model="receiptItemForm.lot_number"
-              type="text"
-              style="width: 100px"
-              placeholder="Lote (opc.)"
-            />
-            <AppInput
-              v-model="receiptItemForm.expiration_date"
-              type="date"
-              style="width: 130px"
-            />
-            <button
-              type="button"
-              class="btn btn--primary btn--sm"
-              :disabled="receiptItemLoading || !receiptItemForm.product"
-              @click="addReceiptItem"
-            >
-              {{ receiptItemLoading ? "..." : "Agregar" }}
-            </button>
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div class="p-3 rounded-lg bg-background border border-border">
+                  <div class="text-xs text-muted-foreground">
+                    Recibido
+                  </div>
+
+                  <div class="text-lg font-semibold mt-1">
+                    {{ receiptItemForm.received_quantity || 0 }}
+                  </div>
+                </div>
+
+                <div class="p-3 rounded-lg bg-background border border-border">
+                  <div class="text-xs text-muted-foreground">
+                    Aceptado
+                  </div>
+
+                  <div class="text-lg font-semibold mt-1">
+                    {{ receiptItemForm.accepted_quantity || 0 }}
+                  </div>
+                </div>
+
+                <div class="p-3 rounded-lg bg-background border border-border">
+                  <div class="text-xs text-muted-foreground">
+                    Rechazado
+                  </div>
+
+                  <div class="text-lg font-semibold mt-1">
+                    {{ receiptItemForm.rejected_quantity || 0 }}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </template>
 

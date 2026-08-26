@@ -101,6 +101,26 @@ export function usePermissions() {
     ),
 
     // =========================================================
+    // MANTENEDOR
+    // =========================================================
+
+    canViewMaintenance: computed(() =>
+    can("can_view_maintenance"),
+    ),
+
+    canCreateMaintenance: computed(() =>
+    can("can_create_maintenance"),
+    ),
+
+    canEditMaintenance: computed(() =>
+    can("can_edit_maintenance"),
+    ),
+
+    canDeleteMaintenance: computed(() =>
+    can("can_delete_maintenance"),
+    ),
+
+    // =========================================================
     // INVENTARIO — MOVIMIENTOS
     // =========================================================
 
@@ -256,8 +276,40 @@ export function usePermissions() {
     // FINANZAS
     // =========================================================
 
-    canManageFinance: computed(() =>
-      can("can_manage_finance"),
+    canViewFinance: computed(() =>
+      can("can_view_finance"),
+    ),
+
+    canCreateFinance: computed(() =>
+      can("can_create_finance"),
+    ),
+
+    canEditFinance: computed(() =>
+      can("can_edit_finance"),
+    ),
+
+    canDeleteFinance: computed(() =>
+      can("can_delete_finance"),
+    ),
+
+    // =========================================================
+    // INGRESOS
+    // =========================================================
+
+    canViewRevenue: computed(() =>
+      can("can_view_revenue"),
+    ),
+
+    canCreateRevenue: computed(() =>
+      can("can_create_revenue"),
+    ),
+
+    canEditRevenue: computed(() =>
+      can("can_edit_revenue"),
+    ),
+
+    canDeleteRevenue: computed(() =>
+      can("can_delete_revenue"),
     ),
 
     // =========================================================
