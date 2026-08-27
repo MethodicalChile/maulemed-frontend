@@ -252,224 +252,6 @@ const purchaseSuggestions = ref([]);
 const purchaseSuggestionsSummary = ref(null);
 const purchaseSuggestionsBranch = ref("");
 
-const purchaseSuggestionsCreating = ref(false);
-const purchaseSuggestionsSuccess = ref("");
-const purchaseSuggestionSelection = ref({});
-const purchaseSuggestionQuantities = ref({});
-const purchaseSuggestionSuppliers = ref({});
-
-function purchaseSuggestionKey(suggestion) {
-  return `${suggestion.branch_uuid}-${suggestion.product_uuid}`;
-}
-
-function initializePurchaseSuggestionSelection() {
-  const selection = {};
-  const quantities = {};
-  const selectedSuppliers = {};
-
-  for (const suggestion of purchaseSuggestions.value) {
-    const key = purchaseSuggestionKey(suggestion);
-    const recommended = suggestion.recommended_supplier;
-
-    const canSelect =
-      Boolean(recommended?.supplier_product_uuid) &&
-      recommended?.unit_price != null &&
-      !recommended?.minimum_purchase_applies;
-
-    selection[key] = canSelect;
-    quantities[key] = Number(suggestion.suggested_quantity ?? 0);
-    selectedSuppliers[key] =
-      recommended?.supplier_product_uuid ?? "";
-  }
-
-  purchaseSuggestionSelection.value = selection;
-  purchaseSuggestionQuantities.value = quantities;
-  purchaseSuggestionSuppliers.value = selectedSuppliers;
-}
-
-const selectedPurchaseSuggestions = computed(() =>
-  purchaseSuggestions.value.filter(
-    (suggestion) =>
-      purchaseSuggestionSelection.value[
-        purchaseSuggestionKey(suggestion)
-      ],
-  ),
-);
-
-const selectedPurchaseSuggestionsCount = computed(
-  () => selectedPurchaseSuggestions.value.length,
-);
-
-const selectablePurchaseSuggestions = computed(() =>
-  purchaseSuggestions.value.filter((suggestion) =>
-    suggestion.supplier_options?.some(
-      (option) =>
-        option.supplier_product_uuid &&
-        option.unit_price != null &&
-        !option.minimum_purchase_applies,
-    ),
-  ),
-);
-
-const allPurchaseSuggestionsSelected = computed(() => {
-  if (!selectablePurchaseSuggestions.value.length) return false;
-
-  return selectablePurchaseSuggestions.value.every(
-    (suggestion) =>
-      purchaseSuggestionSelection.value[
-        purchaseSuggestionKey(suggestion)
-      ],
-  );
-});
-
-function toggleAllPurchaseSuggestions() {
-  const shouldSelect = !allPurchaseSuggestionsSelected.value;
-
-  for (const suggestion of selectablePurchaseSuggestions.value) {
-    const key = purchaseSuggestionKey(suggestion);
-    purchaseSuggestionSelection.value[key] = shouldSelect;
-  }
-}
-
-function selectedSupplierOption(suggestion) {
-  const key = purchaseSuggestionKey(suggestion);
-  const supplierProductUuid =
-    purchaseSuggestionSuppliers.value[key];
-
-  return (
-    suggestion.supplier_options?.find(
-      (option) =>
-        option.supplier_product_uuid === supplierProductUuid,
-    ) ?? null
-  );
-}
-
-function suggestionEstimatedTotal(suggestion) {
-  const key = purchaseSuggestionKey(suggestion);
-  const option = selectedSupplierOption(suggestion);
-  const quantity = Number(
-    purchaseSuggestionQuantities.value[key] ?? 0,
-  );
-
-  if (!option || option.unit_price == null || quantity <= 0) {
-    return null;
-  }
-
-  return Number(option.unit_price) * quantity;
-}
-
-function onSuggestionSupplierChange(suggestion) {
-  const key = purchaseSuggestionKey(suggestion);
-  const option = selectedSupplierOption(suggestion);
-
-  if (!option) {
-    purchaseSuggestionSelection.value[key] = false;
-    return;
-  }
-
-  if (
-    option.min_purchase_quantity &&
-    Number(purchaseSuggestionQuantities.value[key] ?? 0) <
-      Number(option.min_purchase_quantity)
-  ) {
-    purchaseSuggestionQuantities.value[key] = Number(
-      option.min_purchase_quantity,
-    );
-  }
-
-  purchaseSuggestionSelection.value[key] =
-    option.unit_price != null;
-}
-
-async function createOrdersFromPurchaseSuggestions() {
-  if (!canCreatePurchaseOrders.value) return;
-
-  purchaseSuggestionsError.value = "";
-  purchaseSuggestionsSuccess.value = "";
-
-  const selectedItems = selectedPurchaseSuggestions.value.map(
-    (suggestion) => {
-      const key = purchaseSuggestionKey(suggestion);
-
-      return {
-        branch_uuid: suggestion.branch_uuid,
-        product_uuid: suggestion.product_uuid,
-        supplier_product_uuid:
-          purchaseSuggestionSuppliers.value[key],
-        quantity: purchaseSuggestionQuantities.value[key],
-      };
-    },
-  );
-
-  if (!selectedItems.length) {
-    purchaseSuggestionsError.value =
-      "Selecciona al menos un producto para crear órdenes.";
-    return;
-  }
-
-  for (const item of selectedItems) {
-    if (!item.supplier_product_uuid) {
-      purchaseSuggestionsError.value =
-        "Todos los productos seleccionados deben tener un proveedor.";
-      return;
-    }
-
-    if (!item.quantity || Number(item.quantity) <= 0) {
-      purchaseSuggestionsError.value =
-        "Todas las cantidades deben ser mayores que cero.";
-      return;
-    }
-  }
-
-  purchaseSuggestionsCreating.value = true;
-
-  try {
-    const res =
-      await purchasingApi.createPurchaseOrdersFromSuggestions({
-        selected_items: selectedItems,
-        tax_rate: 19,
-        notes:
-          "Orden generada desde sugerencias automáticas de reposición.",
-      });
-
-    const data = res.data?.data ?? res.data ?? {};
-
-    const ordersCount = data.orders_count ?? 0;
-    const itemsCount = data.items_count ?? 0;
-
-    purchaseSuggestionsSuccess.value =
-      `Se crearon ${ordersCount} orden(es) de compra en borrador con ${itemsCount} producto(s).`;
-
-    for (const suggestion of selectedPurchaseSuggestions.value) {
-      purchaseSuggestionSelection.value[
-        purchaseSuggestionKey(suggestion)
-      ] = false;
-    }
-
-    await poList.load();
-
-    try {
-      const poRes = await purchasingApi.listPurchaseOrders({
-        page_size: 200,
-      });
-      const poData = poRes.data?.data ?? poRes.data;
-      purchaseOrders.value = Array.isArray(poData)
-        ? poData
-        : (poData?.results ?? []);
-    } catch {
-      // La tabla principal ya fue refrescada; esta lista es auxiliar.
-    }
-  } catch (e) {
-    purchaseSuggestionsError.value =
-      e.response?.data?.message ??
-      e.response?.data?.detail ??
-      e.response?.data?.data?.detail ??
-      "No se pudieron crear las órdenes sugeridas.";
-  } finally {
-    purchaseSuggestionsCreating.value = false;
-  }
-}
-
 async function loadPurchaseSuggestions() {
   purchaseSuggestionsLoading.value = true;
   purchaseSuggestionsError.value = "";
@@ -494,8 +276,6 @@ async function loadPurchaseSuggestions() {
       high_priority_products: 0,
       estimated_total: 0,
     };
-
-    initializePurchaseSuggestionSelection();
   } catch (e) {
     purchaseSuggestions.value = [];
     purchaseSuggestionsSummary.value = null;
@@ -512,23 +292,16 @@ async function loadPurchaseSuggestions() {
 async function openPurchaseSuggestions() {
   purchaseSuggestionsBranch.value = "";
   purchaseSuggestionsError.value = "";
-  purchaseSuggestionsSuccess.value = "";
   purchaseSuggestions.value = [];
   purchaseSuggestionsSummary.value = null;
-  purchaseSuggestionSelection.value = {};
-  purchaseSuggestionQuantities.value = {};
-  purchaseSuggestionSuppliers.value = {};
   showPurchaseSuggestionsModal.value = true;
 
   await loadPurchaseSuggestions();
 }
 
 function closePurchaseSuggestions() {
-  if (purchaseSuggestionsCreating.value) return;
-
   showPurchaseSuggestionsModal.value = false;
   purchaseSuggestionsError.value = "";
-  purchaseSuggestionsSuccess.value = "";
 }
 
 function purchasePriorityLabel(priority) {
@@ -1728,32 +1501,6 @@ function fmtDate(val) {
           :message="purchaseSuggestionsError"
         />
 
-        <AppAlert
-          v-if="purchaseSuggestionsSuccess"
-          type="success"
-          :message="purchaseSuggestionsSuccess"
-        />
-
-        <div
-          v-if="purchaseSuggestions.length"
-          class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-border bg-muted/20 px-4 py-3"
-        >
-          <label class="inline-flex items-center gap-2 text-sm font-medium cursor-pointer">
-            <input
-              type="checkbox"
-              class="h-4 w-4"
-              :checked="allPurchaseSuggestionsSelected"
-              @change="toggleAllPurchaseSuggestions"
-            />
-            Seleccionar todas las sugerencias válidas
-          </label>
-
-          <span class="text-sm text-muted-foreground">
-            {{ selectedPurchaseSuggestionsCount }}
-            seleccionada(s)
-          </span>
-        </div>
-
         <div
           v-if="purchaseSuggestionsSummary"
           class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3"
@@ -1800,26 +1547,7 @@ function fmtDate(val) {
             :key="`${suggestion.branch_uuid}-${suggestion.product_uuid}`"
             class="purchase-suggestion-card"
           >
-            <div class="flex items-start gap-3">
-              <input
-                v-model="
-                  purchaseSuggestionSelection[
-                    purchaseSuggestionKey(suggestion)
-                  ]
-                "
-                type="checkbox"
-                class="mt-1 h-4 w-4 shrink-0"
-                :disabled="
-                  !suggestion.supplier_options?.some(
-                    (option) =>
-                      option.unit_price != null &&
-                      !option.minimum_purchase_applies,
-                  )
-                "
-              />
-
-              <div class="flex-1 min-w-0">
-                <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
+            <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
               <div>
                 <div class="flex items-center gap-2 flex-wrap">
                   <h3 class="font-semibold text-base">{{ suggestion.product_name }}</h3>
@@ -1854,8 +1582,6 @@ function fmtDate(val) {
                   </span>
                 </div>
               </div>
-                </div>
-              </div>
             </div>
 
             <div class="grid grid-cols-2 md:grid-cols-5 gap-2 mt-4">
@@ -1882,111 +1608,43 @@ function fmtDate(val) {
             </div>
 
             <div class="mt-4 rounded-lg border border-border p-3">
-              <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
-                <FormField label="Cantidad a comprar">
-                  <AppInput
-                    v-model.number="
-                      purchaseSuggestionQuantities[
-                        purchaseSuggestionKey(suggestion)
-                      ]
-                    "
-                    type="number"
-                    min="1"
-                    step="1"
-                  />
-                </FormField>
-
-                <FormField label="Proveedor" class="lg:col-span-2">
-                  <AppSelect
-                    v-model="
-                      purchaseSuggestionSuppliers[
-                        purchaseSuggestionKey(suggestion)
-                      ]
-                    "
-                    @change="onSuggestionSupplierChange(suggestion)"
-                  >
-                    <option value="">Seleccionar proveedor</option>
-                    <option
-                      v-for="option in suggestion.supplier_options"
-                      :key="option.supplier_product_uuid"
-                      :value="option.supplier_product_uuid"
-                      :disabled="
-                        option.unit_price == null ||
-                        option.minimum_purchase_applies
-                      "
-                    >
-                      {{ option.supplier_name }}
-                      ·
-                      {{
-                        option.unit_price != null
-                          ? fmtMoney(option.unit_price)
-                          : "sin precio"
-                      }}
-                      <template v-if="option.delivery_days != null">
-                        · {{ option.delivery_days }} días
-                      </template>
-                      <template v-if="option.minimum_purchase_applies">
-                        · mínimo {{ option.min_purchase_quantity }}
-                      </template>
-                    </option>
-                  </AppSelect>
-                </FormField>
-              </div>
-
-              <div
-                v-if="selectedSupplierOption(suggestion)"
-                class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mt-4 pt-3 border-t border-border"
-              >
+              <div class="flex items-center justify-between gap-3 flex-wrap">
                 <div>
                   <div class="text-xs uppercase tracking-wide text-muted-foreground">
-                    Proveedor seleccionado
+                    Proveedor recomendado
                   </div>
-                  <div class="font-semibold mt-1">
-                    {{ selectedSupplierOption(suggestion)?.supplier_name }}
-                  </div>
-                  <div class="text-sm text-muted-foreground">
-                    {{
-                      selectedSupplierOption(suggestion)?.unit_price != null
-                        ? fmtMoney(
-                            selectedSupplierOption(suggestion)?.unit_price,
-                          ) + " / unidad"
-                        : "Precio no informado"
-                    }}
-                    <span
-                      v-if="
-                        selectedSupplierOption(suggestion)?.delivery_days != null
-                      "
-                    >
-                      ·
-                      {{
-                        selectedSupplierOption(suggestion)?.delivery_days
-                      }}
-                      días de entrega
-                    </span>
+                  <template v-if="suggestion.recommended_supplier">
+                    <div class="font-semibold mt-1">
+                      {{ suggestion.recommended_supplier.supplier_name }}
+                    </div>
+                    <div class="text-sm text-muted-foreground">
+                      {{ suggestion.recommended_supplier.unit_price != null
+                        ? fmtMoney(suggestion.recommended_supplier.unit_price) + ' / unidad'
+                        : 'Precio no informado' }}
+                      <span
+                        v-if="suggestion.recommended_supplier.delivery_days != null"
+                      >
+                        · {{ suggestion.recommended_supplier.delivery_days }} días de entrega
+                      </span>
+                    </div>
+                  </template>
+                  <div v-else class="text-sm text-muted-foreground mt-1">
+                    No hay proveedor activo configurado para este producto.
                   </div>
                 </div>
 
-                <div class="md:text-right">
+                <div v-if="suggestion.recommended_supplier" class="text-left lg:text-right">
                   <div class="text-xs uppercase tracking-wide text-muted-foreground">
-                    Total seleccionado
+                    Total estimado
                   </div>
-                  <strong class="text-lg">
+                  <strong>
                     {{
-                      suggestionEstimatedTotal(suggestion) != null
-                        ? fmtMoney(
-                            suggestionEstimatedTotal(suggestion),
-                          )
+                      suggestion.recommended_supplier.estimated_total != null
+                        ? fmtMoney(suggestion.recommended_supplier.estimated_total)
                         : "—"
                     }}
                   </strong>
                 </div>
-              </div>
-
-              <div
-                v-else
-                class="mt-3 text-sm text-muted-foreground"
-              >
-                No hay un proveedor válido seleccionado.
               </div>
 
               <details
@@ -1994,8 +1652,7 @@ function fmtDate(val) {
                 class="mt-3"
               >
                 <summary class="cursor-pointer text-sm font-medium text-primary">
-                  Comparar proveedores
-                  ({{ suggestion.supplier_options.length }})
+                  Ver otros proveedores ({{ suggestion.supplier_options.length - 1 }})
                 </summary>
 
                 <div class="overflow-x-auto mt-2">
@@ -2004,37 +1661,19 @@ function fmtDate(val) {
                       <tr>
                         <th>Proveedor</th>
                         <th>Precio</th>
-                        <th>Mínimo</th>
+                        <th>Total estimado</th>
                         <th>Entrega</th>
                       </tr>
                     </thead>
                     <tbody>
                       <tr
-                        v-for="option in suggestion.supplier_options"
+                        v-for="option in suggestion.supplier_options.slice(1)"
                         :key="option.supplier_product_uuid"
                       >
                         <td>{{ option.supplier_name }}</td>
-                        <td>
-                          {{
-                            option.unit_price != null
-                              ? fmtMoney(option.unit_price)
-                              : "—"
-                          }}
-                        </td>
-                        <td>
-                          {{
-                            Number(option.min_purchase_quantity || 0) > 0
-                              ? option.min_purchase_quantity
-                              : "—"
-                          }}
-                        </td>
-                        <td>
-                          {{
-                            option.delivery_days != null
-                              ? `${option.delivery_days} días`
-                              : "—"
-                          }}
-                        </td>
+                        <td>{{ option.unit_price != null ? fmtMoney(option.unit_price) : "—" }}</td>
+                        <td>{{ option.estimated_total != null ? fmtMoney(option.estimated_total) : "—" }}</td>
+                        <td>{{ option.delivery_days != null ? `${option.delivery_days} días` : "—" }}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -2053,28 +1692,9 @@ function fmtDate(val) {
           <button
             type="button"
             class="btn btn--ghost"
-            :disabled="purchaseSuggestionsCreating"
             @click="closePurchaseSuggestions"
           >
             Cerrar
-          </button>
-
-          <button
-            v-if="purchaseSuggestions.length"
-            type="button"
-            class="btn btn--primary"
-            :disabled="
-              purchaseSuggestionsCreating ||
-              selectedPurchaseSuggestionsCount === 0
-            "
-            @click="createOrdersFromPurchaseSuggestions"
-          >
-            <Sparkles :size="15" />
-            {{
-              purchaseSuggestionsCreating
-                ? "Creando órdenes..."
-                : `Crear órdenes sugeridas (${selectedPurchaseSuggestionsCount})`
-            }}
           </button>
         </div>
       </div>
