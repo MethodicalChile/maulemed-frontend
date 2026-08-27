@@ -2,11 +2,11 @@
 
 // Endpoints de listas simplificadas para selects y dropdowns.
 // Todos los endpoints aceptan ?search= y ?limit= (máx 200, default 100).
-// Para selects que necesitan todos los registros se pasa limit=200.
+// Para selects que necesitan todos los registros se pasa limit=20.
 
 import http from "./http";
 
-const ALL = { limit: 200 };
+const ALL = { limit: 20 };
 
 export const optionsApi = {
   getOrganizations: (params) =>
