@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { Plus, Pencil, Trash2, Search } from "lucide-vue-next";
 import { financeApi } from "@/api/finance.api";
 import { optionsApi } from "@/api/options.api";
@@ -102,6 +102,10 @@ const {
     : financeApi.createInvoice(data),
 );
 
+watch([() => invForm.net_amount, () => invForm.tax_amount], ([net, tax]) => {
+  invForm.total_amount = Number(net || 0) + Number(tax || 0);
+});
+
 function openCreateInvoice() {
   if (!canCreateFinance.value) return;
 
@@ -140,19 +144,43 @@ async function handleInvoiceSubmit() {
     if (!canCreateFinance.value) return;
   }
 
-  await invSubmit();
+  // Limpiar campos vacíos antes de enviar
+  const fieldsToClean = ['supplier', 'legal_entity', 'branch', 'purchase_order'];
+  fieldsToClean.forEach(field => {
+    console.log(`Checking field ${field}: value=${invForm[field]}, type=${typeof invForm[field]}`);
+    if (invForm[field] === "" || invForm[field] === undefined) invForm[field] = null;
+  });
 
-  showInvoiceForm.value = false;
-  await invoiceList.load();
+  console.log('Submitting invoice form payload:', JSON.stringify(invForm));
 
-  const res = await financeApi
-    .listInvoices({ page_size: 200 })
-    .catch(() => null);
-
-  if (res) {
-    const d = res.data?.data ?? res.data;
-
-    invoices.value = Array.isArray(d) ? d : (d.results ?? d);
+  try {
+    await invSubmit();
+    
+    showInvoiceForm.value = false;
+    await invoiceList.load();
+    
+    const res = await financeApi
+      .listInvoices({ page_size: 200 })
+      .catch(() => null);
+    
+    if (res) {
+      const d = res.data?.data ?? res.data;
+      invoices.value = Array.isArray(d) ? d : (d.results ?? d);
+    }
+  } catch (e) {
+    console.error("Error al registrar factura:", e.response?.data);
+    const errorData = e.response?.data;
+    
+    let message = "Error al procesar la solicitud.";
+    
+    if (errorData) {
+      // Intentar extraer el mensaje real
+      const detail = errorData.detail || errorData.message || (errorData.data ? (errorData.data.detail || errorData.data.message) : null);
+      
+      message = detail || (typeof errorData === 'object' ? JSON.stringify(errorData) : "Error al procesar la solicitud.");
+    }
+    
+    invError.value = message;
   }
 }
 
@@ -221,6 +249,12 @@ async function handlePaymentSubmit() {
     if (!canCreateFinance.value) return;
   }
 
+  // Limpiar campos vacíos antes de enviar
+  const fieldsToClean = ['supplier_invoice', 'legal_entity'];
+  fieldsToClean.forEach(field => {
+    if (payForm[field] === "" || payForm[field] === undefined) payForm[field] = null;
+  });
+
   await paySubmit();
 
   showPaymentForm.value = false;
@@ -273,6 +307,7 @@ const emptyBudgetForm = {
   branch: "",
   cost_center: "",
   category: "",
+  budget_category: "",
   period_year: new Date().getFullYear(),
   period_month: new Date().getMonth() + 1,
   budget_amount: "",
@@ -298,6 +333,12 @@ async function handleBudgetSubmit() {
   } else {
     if (!canCreateFinance.value) return;
   }
+
+  // Limpiar campos vacíos antes de enviar
+  const fieldsToClean = ['legal_entity', 'branch', 'cost_center', 'category', 'budget_category'];
+  fieldsToClean.forEach(field => {
+    if (budForm[field] === "" || budForm[field] === undefined) budForm[field] = null;
+  });
 
   await budSubmit();
 
@@ -380,6 +421,7 @@ function openEditBudget(row) {
 
 // ── Opciones & mount ──────────────────────────────────────────────────────────
 const suppliers = ref([]);
+const legalEntities = ref([]);
 const invoices = ref([]); // para el selector de facturas en el formulario de pago
 
 async function loadData() {
@@ -392,27 +434,32 @@ async function loadData() {
   // Estas opciones solo se necesitan para crear/editar
   if (!canCreateFinance.value && !canEditFinance.value) {
     suppliers.value = [];
+    legalEntities.value = [];
     invoices.value = [];
     return;
   }
 
-  const [supRes, invRes] = await Promise.allSettled([
+  const [supRes, invRes, leRes] = await Promise.allSettled([
     optionsApi.getSuppliers(),
     financeApi.listInvoices({
       page_size: 200,
     }),
+    optionsApi.getLegalEntities(),
   ]);
 
   if (supRes.status === "fulfilled") {
     const d = supRes.value.data?.data ?? supRes.value.data;
-
     suppliers.value = Array.isArray(d) ? d : (d.results ?? d);
   }
 
   if (invRes.status === "fulfilled") {
     const d = invRes.value.data?.data ?? invRes.value.data;
-
     invoices.value = Array.isArray(d) ? d : (d.results ?? d);
+  }
+
+  if (leRes.status === "fulfilled") {
+    const d = leRes.value.data?.data ?? leRes.value.data;
+    legalEntities.value = Array.isArray(d) ? d : (d.results ?? d);
   }
 }
 
@@ -698,7 +745,7 @@ function fmtDate(val) {
         /></FormField>
         <FormField label="Proveedor">
           <AppSelect v-model="invForm.supplier">
-            <option value="">Sin proveedor</option>
+            <option :value="null">Sin proveedor</option>
             <option v-for="s in suppliers" :key="s.uuid" :value="s.uuid">
               {{ s.name }}
             </option>
@@ -710,26 +757,31 @@ function fmtDate(val) {
         <FormField label="Fecha vencimiento"
           ><AppInput v-model="invForm.due_date" type="date"
         /></FormField>
-        <FormField label="Monto neto"
+        <FormField label="Monto neto" required
           ><AppInput
-            v-model="invForm.net_amount"
+            v-model.number="invForm.net_amount"
             type="number"
             min="0"
             step="0.01"
+            required
         /></FormField>
-        <FormField label="IVA"
+        <FormField label="IVA" required
           ><AppInput
-            v-model="invForm.tax_amount"
+            v-model.number="invForm.tax_amount"
             type="number"
             min="0"
             step="0.01"
+            required
         /></FormField>
-        <FormField label="Total"
+        <FormField label="Total" required
           ><AppInput
-            v-model="invForm.total_amount"
+            v-model.number="invForm.total_amount"
             type="number"
             min="0"
             step="0.01"
+            required
+            readonly
+            class="bg-muted cursor-not-allowed"
         /></FormField>
         <FormField label="Estado">
           <AppSelect v-model="invForm.status">
@@ -848,6 +900,14 @@ function fmtDate(val) {
     >
       <form class="grid grid-cols-1 gap-4" @submit.prevent="handleBudgetSubmit">
         <AppAlert v-if="budError" type="error" :message="budError" />
+        <FormField label="Razón social" required>
+          <AppSelect v-model="budForm.legal_entity" required>
+            <option value="">Seleccionar razón social</option>
+            <option v-for="le in legalEntities" :key="le.uuid" :value="le.uuid">
+              {{ le.name }}
+            </option>
+          </AppSelect>
+        </FormField>
         <FormField label="Año" required
           ><AppInput v-model="budForm.period_year" type="number" required
         /></FormField>

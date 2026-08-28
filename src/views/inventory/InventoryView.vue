@@ -188,40 +188,29 @@ async function handleMovSubmit() {
   movLoading.value = true;
   try {
     const type = movForm.movement_type;
-    const payload = {
-      product_uuid: movForm.product,
-      quantity: movForm.quantity,
-      reason: movForm.reason || undefined,
-    };
-
+    
     if (["AJUSTE_POSITIVO", "AJUSTE_NEGATIVO"].includes(type)) {
       // adjust espera quantity positiva para + y negativa para -
       const qty =
         type === "AJUSTE_NEGATIVO"
           ? -Math.abs(movForm.quantity)
           : Math.abs(movForm.quantity);
-      await inventoryApi.adjustStock({
-        warehouse_uuid:
-          movForm.warehouse_origin ||
-          movForm.warehouse_destination,
-
+      
+      const adjustPayload = {
         product_uuid: movForm.product,
-
         quantity: qty,
+        reason: movForm.reason || "Ajuste manual",
+      };
 
-        reason:
-          movForm.reason ||
-          "Ajuste manual",
+      if (movForm.warehouse_origin) adjustPayload.warehouse_uuid = movForm.warehouse_origin;
+      else if (movForm.warehouse_destination) adjustPayload.warehouse_uuid = movForm.warehouse_destination;
 
-        lot_number:
-          movForm.lot_number || null,
+      if (movForm.lot_number) adjustPayload.lot_number = movForm.lot_number;
+      if (movForm.expiration_date) adjustPayload.expiration_date = movForm.expiration_date;
+      if (movForm.supplier) adjustPayload.supplier_uuid = movForm.supplier;
 
-        expiration_date:
-          movForm.expiration_date || null,
-
-        supplier_uuid:
-          movForm.supplier || null,
-      });
+      console.log('Adjust Payload:', adjustPayload);
+      await inventoryApi.adjustStock(adjustPayload);
     } else if (["EGRESO_CONSUMO", "MERMA", "VENCIMIENTO"].includes(type)) {
       await inventoryApi.decreaseStock({
         warehouse_uuid: movForm.warehouse_origin,
@@ -245,8 +234,28 @@ async function handleMovSubmit() {
     movList.load();
     stockList.load();
   } catch (e) {
-    movError.value =
-      e.response?.data?.message ?? "Error al registrar el movimiento.";
+    console.error("Error completo (e.response):", e.response);
+    const errorData = e.response?.data;
+    
+    let message = "Error al registrar el movimiento.";
+    
+    if (errorData) {
+      // 1. Prioridad: buscar mensaje detallado en la estructura anidada (ej. { data: { detail: [...] } })
+      if (errorData.data?.detail) {
+        const detail = errorData.data.detail;
+        message = Array.isArray(detail) ? detail.join(' ') : detail;
+      }
+      // 2. Buscar mensaje plano (ej. { message: '...' })
+      else if (errorData.message) {
+        message = errorData.message;
+      }
+      // 3. Fallback: serializar el objeto si no hay mensaje claro
+      else if (typeof errorData === 'object') {
+        message = JSON.stringify(errorData);
+      }
+    }
+    
+    movError.value = message;
   } finally {
     movLoading.value = false;
   }

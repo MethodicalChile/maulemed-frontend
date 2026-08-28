@@ -153,61 +153,15 @@ function reset() {
   resetForm();
 }
 
-function buildProductFormData(data) {
-  const formData = new FormData();
-
-  Object.entries(data).forEach(([key, value]) => {
-    // Imagen
-    if (key === "image") {
-      if (value instanceof File) {
-        formData.append("image", value);
-      }
-
-      return;
-    }
-
-    // Booleano especial para eliminar imagen
-    if (key === "remove_image") {
-      formData.append(
-        "remove_image",
-        value ? "true" : "false",
-      );
-
-      return;
-    }
-
-    // No enviar null / undefined
-    if (value === null || value === undefined) {
-      return;
-    }
-
-    // Booleanos
-    if (typeof value === "boolean") {
-      formData.append(
-        key,
-        value ? "true" : "false",
-      );
-
-      return;
-    }
-
-    formData.append(key, String(value));
-  });
-
-  return formData;
-}
-
 async function submit(data) {
-  const payload = buildProductFormData(data);
-
   if (editingItem.value) {
     return await productsApi.updateProduct(
       editingItem.value.uuid,
-      payload,
+      data,
     );
   }
 
-  return await productsApi.createProduct(payload);
+  return await productsApi.createProduct(data);
 }
 
 // ─── Proveedores asociados ─────────────────────────────────────────────────────
@@ -448,7 +402,16 @@ const onSubmit = handleSubmit(async (data) => {
     showForm.value = false;
     await load();
   } catch (err) {
-    formError.value = err.response?.data?.message ?? "Error al guardar.";
+    console.error("Error completo al guardar producto:", err.response?.data);
+    const errorData = err.response?.data;
+    
+    let message = "Error al guardar.";
+    if (errorData) {
+      // Intentar extraer el mensaje real (puede ser un objeto de errores de campo)
+      message = typeof errorData === 'object' ? JSON.stringify(errorData) : errorData;
+    }
+    
+    formError.value = message;
   } finally {
     formLoading.value = false;
   }

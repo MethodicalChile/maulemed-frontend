@@ -726,10 +726,10 @@ async function addPOItem() {
       unit_price: poItemForm.value.unit_price,
     });
 
-    itemForm.value = {
+    poItemForm.value = {
       product: "",
-      requested_quantity: 1,
-      lot: "",
+      quantity: 1,
+      unit_price: 0,
     };
 
     await openPODetail(viewingPO.value);
@@ -1058,10 +1058,10 @@ async function addSRItem() {
       requested_quantity: srItemForm.value.requested_quantity,
       justification: srItemForm.value.justification,
     });
-    itemForm.value = {
+    srItemForm.value = {
       product: "",
       requested_quantity: 1,
-      lot: "",
+      justification: "",
     };
     await openSRDetail(viewingSR.value);
   } catch (e) {
